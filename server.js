@@ -3,8 +3,23 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const os = require('os');
 
 const PORT = 8081;
+
+function getLocalIP() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                return iface.address;
+            }
+        }
+    }
+    return '127.0.0.1';
+}
+
+const LOCAL_IP = getLocalIP();
 const DIFY_API_BASE = 'http://101.35.56.39';
 
 const MIME_TYPES = {
@@ -242,7 +257,7 @@ function handleMvsSubmit(req, res) {
                             const event = JSON.parse(jsonStr);
                             if (event.conversation_id) {
                                 responded = true;
-                                const redirectUrl = `http://localhost:${PORT}/support-chat.html?conversation_id=${event.conversation_id}`;
+                                const redirectUrl = `http://${LOCAL_IP}:${PORT}/support-chat.html?conversation_id=${event.conversation_id}`;
 
                                 res.writeHead(200, {
                                     'Content-Type': 'application/json',
@@ -322,8 +337,10 @@ function handleMvsSubmit(req, res) {
     });
 }
 
-server.listen(PORT, '127.0.0.1', () => {
-    console.log(`Server running at http://127.0.0.1:${PORT}/`);
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running at http://${LOCAL_IP}:${PORT}/`);
+    console.log(`  Local:   http://127.0.0.1:${PORT}/`);
+    console.log(`  Network: http://${LOCAL_IP}:${PORT}/`);
     console.log(`Dify API Proxy: /api/dify/* -> ${DIFY_API_BASE}/*`);
     console.log(`MVS Submit API: POST /api/mvs/submit`);
 });
