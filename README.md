@@ -85,19 +85,19 @@ Vastbase 智能助手"量仔"，提供智能问答和技术支持服务。
 
 ## 技术栈
 
-- **前端框架**: 原生 HTML + Tailwind CSS
-- **图表库**: Chart.js
-- **图标库**: Font Awesome 4.7
+- **前端**: 原生 HTML + Tailwind CSS (CDN)
+- **图表**: Chart.js
+- **图标**: Font Awesome 4.7
 - **Markdown 渲染**: marked.js
-- **代码高亮**: highlight.js
-- **开发服务器**: Node.js + http-server
+- **后端**: Node.js 原生 HTTP 服务器
+- **AI 接口**: Dify API (SSE 流式对话)
 
 ## 环境要求
 
 - **Node.js**: v14.0.0 或更高版本（推荐 v18+）
 - **npm**: v6.0.0 或更高版本
+- **操作系统**: Linux（生产环境部署需要 systemd 支持）
 
-可以通过以下命令检查当前版本：
 ```bash
 node -v
 npm -v
@@ -111,18 +111,10 @@ npm -v
 npm install
 ```
 
-### 启动服务
-
-**方式一：使用 npm 脚本（推荐）**
+### 本地开发
 
 ```bash
 npm run dev
-```
-
-**方式二：直接运行 Node.js**
-
-```bash
-node server.js
 ```
 
 服务将在 `http://localhost:8081` 启动。
@@ -134,13 +126,76 @@ node server.js
 | 命令 | 说明 | 端口 |
 |------|------|------|
 | `npm run dev` | 启动代理服务器（推荐，支持 Dify API 代理） | 8081 |
+| `npm start` | 同 `npm run dev`，生产环境使用 | 8081 |
 | `npm run dev:static` | 仅启动静态文件服务器（不支持 Dify 代理） | 8081 |
+
+### 环境变量配置
+
+项目支持通过 `.env` 文件配置运行参数，参考 `.env.example` 创建：
+
+```bash
+cp .env.example .env
+```
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `PORT` | 服务监听端口 | `8081` |
+| `LOCAL_IP` | 服务器 IP 地址 | `43.139.131.125` |
+| `DIFY_API_BASE` | Dify API 地址 | `http://101.35.56.39` |
+| `NODE_ENV` | 运行环境 | `production` |
+
+## 生产环境部署
+
+### 一键部署（推荐）
+
+将项目上传到服务器后，执行部署脚本即可自动完成安装、配置和服务注册：
+
+```bash
+chmod +x install.sh
+sudo ./install.sh
+```
+
+部署脚本会自动完成以下操作：
+1. 检查 Node.js 环境
+2. 停止已有服务
+3. 复制项目文件到 `/opt/vastbase-support`
+4. 安装 npm 依赖
+5. 注册并启动 systemd 服务
+
+### 手动部署
+
+```bash
+# 1. 复制项目到目标目录
+sudo mkdir -p /opt/vastbase-support
+sudo cp -r ./* /opt/vastbase-support/
+sudo cp .env /opt/vastbase-support/
+
+# 2. 安装依赖
+cd /opt/vastbase-support && npm install --production
+
+# 3. 注册 systemd 服务
+sudo cp vastbase-support.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable vastbase-support
+sudo systemctl start vastbase-support
+```
+
+### 服务管理
+
+```bash
+sudo systemctl start vastbase-support      # 启动服务
+sudo systemctl stop vastbase-support       # 停止服务
+sudo systemctl restart vastbase-support    # 重启服务
+sudo systemctl status vastbase-support     # 查看状态
+journalctl -u vastbase-support -f          # 查看实时日志
+```
 
 ### API 代理说明
 
 代理服务器 (`server.js`) 提供以下功能：
 
-- **Dify API 代理**: `/api/dify/*` → `https://api.dify.ai/*`
+- **Dify API 代理**: `/api/dify/*` → Dify API 服务器
+- **MVS 工单提交**: `POST /api/mvs/submit` → 创建 Dify 对话并重定向
 - **超时设置**: 300 秒（适用于长时间的 AI 对话请求）
 - **跨域支持**: 自动添加 CORS 头
 
@@ -148,17 +203,20 @@ node server.js
 
 ```
 VastAIDemo/
-├── index.html              # 首页/平台入口
-├── module-install.html     # 智能评估模块
-├── module-migrate.html     # 智能迁移模块
-├── module-support.html     # 报错答疑跳转页
-├── support-submit.html     # 报错答疑 - 问题提交表单
-├── support-chat.html       # 报错答疑 - 智能对话界面
-├── module-monitor.html     # 运维监控模块
-├── server.js               # Node.js 代理服务器
-├── package.json            # 项目配置
-├── .gitignore              # Git 忽略配置
-└── README.md               # 项目说明
+├── index.html                    # 首页/平台入口
+├── module-install.html           # 智能评估模块
+├── module-migrate.html           # 智能迁移模块
+├── module-support.html           # 报错答疑跳转页
+├── support-submit.html           # 报错答疑 - 问题提交表单
+├── support-chat.html             # 报错答疑 - 智能对话界面
+├── module-monitor.html           # 运维监控模块
+├── server.js                     # Node.js 代理服务器
+├── package.json                  # 项目配置
+├── .env.example                  # 环境变量示例
+├── vastbase-support.service      # systemd 服务配置
+├── install.sh                    # 一键部署脚本
+├── .gitignore                    # Git 忽略配置
+└── README.md                     # 项目说明
 ```
 
 ## 页面导航关系

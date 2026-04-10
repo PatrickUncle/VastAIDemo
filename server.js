@@ -5,7 +5,7 @@ const path = require('path');
 const url = require('url');
 const os = require('os');
 
-const PORT = 8081;
+const PORT = parseInt(process.env.PORT) || 8081;
 
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
@@ -19,9 +19,8 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
-// Hardcoded IP address for cloud server
-const LOCAL_IP = '43.139.131.125';
-const DIFY_API_BASE = 'http://101.35.56.39';
+const LOCAL_IP = process.env.LOCAL_IP || '43.139.131.125';
+const DIFY_API_BASE = process.env.DIFY_API_BASE || 'http://101.35.56.39';
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',

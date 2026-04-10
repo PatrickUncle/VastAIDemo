@@ -1,0 +1,23 @@
+[Unit]
+Description=Vastbase Intelligent Database Management Platform
+Documentation=https://github.com/vastbase-support
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/vastbase-support
+EnvironmentFile=/opt/vastbase-support/.env
+ExecStart=/usr/bin/node /opt/vastbase-support/server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vastbase-support
+
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
