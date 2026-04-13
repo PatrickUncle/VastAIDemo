@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -21,6 +23,7 @@ function getLocalIP() {
 
 const LOCAL_IP = process.env.LOCAL_IP || '43.139.131.125';
 const DIFY_API_BASE = process.env.DIFY_API_BASE || 'http://101.35.56.39';
+const MVS_DIFY_API_KEY = process.env.DIFY_API_KEY || '';
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -113,9 +116,14 @@ function handleDifyProxy(req, res, pathname, parsedUrl) {
             const value = req.rawHeaders[i + 1];
             if (key.toLowerCase() !== 'host' && 
                 key.toLowerCase() !== 'origin' &&
-                key.toLowerCase() !== 'referer') {
+                key.toLowerCase() !== 'referer' &&
+                key.toLowerCase() !== 'authorization') {
                 headers[key] = value;
             }
+        }
+        
+        if (MVS_DIFY_API_KEY) {
+            headers['Authorization'] = `Bearer ${MVS_DIFY_API_KEY}`;
         }
         
         const targetUrl = new URL(DIFY_API_BASE);
@@ -178,7 +186,6 @@ function handleDifyProxy(req, res, pathname, parsedUrl) {
     });
 }
 
-const MVS_DIFY_API_KEY = 'app-99L4qvG2FF9611Pl6OkYSkbo';
 
 function handleMvsSubmit(req, res) {
     console.log('[MVS Submit] 收到MVS服务提交请求');

@@ -142,9 +142,116 @@ cp .env.example .env
 | `PORT` | 服务监听端口 | `8081` |
 | `LOCAL_IP` | 服务器 IP 地址 | `43.139.131.125` |
 | `DIFY_API_BASE` | Dify API 地址 | `http://101.35.56.39` |
+| `DIFY_API_KEY` | Dify API 密钥（从 `.env` 文件读取，**前端不持有此密钥**） | 无（必填） |
 | `NODE_ENV` | 运行环境 | `production` |
 
 ## 生产环境部署
+
+### 云主机部署方案（从零开始）
+
+以下步骤适用于一台全新的 Linux 云主机（CentOS / Ubuntu 均可）：
+
+#### 1. 安装 Node.js
+
+```bash
+# CentOS / RHEL
+curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+sudo yum install -y nodejs
+
+# Ubuntu / Debian
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo bash -
+sudo apt-get install -y nodejs
+
+# 验证安装
+node -v
+npm -v
+```
+
+#### 2. 上传项目到云主机
+
+```bash
+# 方式一：使用 scp 上传（在本地执行）
+scp -r ./VastAIDemo root@<云主机IP>:/opt/
+
+# 方式二：使用 git clone（如果项目在 Git 仓库）
+ssh root@<云主机IP>
+cd /opt
+git clone <仓库地址> vastbase-support
+```
+
+#### 3. 配置环境变量
+
+```bash
+cd /opt/vastbase-support
+
+# 根据模板创建配置文件
+cp .env.example .env
+
+# 编辑配置，填入实际的 IP 和 API Key
+vi .env
+```
+
+`.env` 配置示例：
+
+```env
+PORT=8081
+LOCAL_IP=43.139.131.125
+DIFY_API_BASE=http://101.35.56.39
+DIFY_API_KEY=app-your-dify-api-key-here
+NODE_ENV=production
+```
+
+> **重要**：`DIFY_API_KEY` 为必填项，请替换为实际的 Dify API 密钥。密钥由后端代理统一管理，不会暴露给前端。
+
+#### 4. 安装依赖并启动
+
+```bash
+# 安装依赖
+npm install --production
+
+# 前台启动（用于调试）
+node server.js
+
+# 看到以下输出表示启动成功：
+# Server running at http://43.139.131.125:8081/
+#   Local:   http://127.0.0.1:8081/
+#   Network: http://43.139.131.125:8081/
+# Dify API Proxy: /api/dify/* -> http://101.35.56.39/*
+# MVS Submit API: POST /api/mvs/submit
+```
+
+#### 5. 注册为系统服务（推荐）
+
+```bash
+# 复制 service 文件
+sudo cp vastbase-support.service /etc/systemd/system/
+
+# 重新加载 systemd 配置
+sudo systemctl daemon-reload
+
+# 设置开机自启并启动服务
+sudo systemctl enable vastbase-support
+sudo systemctl start vastbase-support
+
+# 检查服务状态
+sudo systemctl status vastbase-support
+```
+
+#### 6. 防火墙放行端口
+
+```bash
+# CentOS / RHEL（firewalld）
+sudo firewall-cmd --permanent --add-port=8081/tcp
+sudo firewall-cmd --reload
+
+# Ubuntu（ufw）
+sudo ufw allow 8081/tcp
+
+# 或者直接使用 iptables
+sudo iptables -A INPUT -p tcp --dport 8081 -j ACCEPT
+```
+
+部署完成后，浏览器访问 `http://<云主机IP>:8081` 即可使用。
 
 ### 一键部署（推荐）
 
@@ -194,10 +301,11 @@ journalctl -u vastbase-support -f          # 查看实时日志
 
 代理服务器 (`server.js`) 提供以下功能：
 
-- **Dify API 代理**: `/api/dify/*` → Dify API 服务器
+- **Dify API 代理**: `/api/dify/*` → Dify API 服务器（自动注入 API Key，前端无需持有密钥）
 - **MVS 工单提交**: `POST /api/mvs/submit` → 创建 Dify 对话并重定向
 - **超时设置**: 300 秒（适用于长时间的 AI 对话请求）
 - **跨域支持**: 自动添加 CORS 头
+- **密钥管理**: Dify API Key 通过 `.env` 文件配置，由后端代理统一注入 `Authorization` 请求头，前端页面不接触密钥
 
 ## 项目结构
 
@@ -210,8 +318,9 @@ VastAIDemo/
 ├── support-submit.html           # 报错答疑 - 问题提交表单
 ├── support-chat.html             # 报错答疑 - 智能对话界面
 ├── module-monitor.html           # 运维监控模块
-├── server.js                     # Node.js 代理服务器
+├── server.js                     # Node.js 代理服务器（自动注入 API Key）
 ├── package.json                  # 项目配置
+├── .env                          # 环境变量配置（含 API Key，不提交到版本库）
 ├── .env.example                  # 环境变量示例
 ├── vastbase-support.service      # systemd 服务配置
 ├── install.sh                    # 一键部署脚本
@@ -261,23 +370,35 @@ VastAIDemo/
 
 ### 模型配置
 
-支持 Dify AI 模型配置：
+Dify AI 模型通过后端代理服务器统一配置，API Key 存储在服务端 `.env` 文件中：
 
-#### Dify 配置
+| 配置项 | 位置 | 说明 |
+|------|------|------|
+| `DIFY_API_KEY` | `.env` 文件 | Dify API 密钥（必填，由后端代理自动注入） |
+| `DIFY_API_BASE` | `.env` 文件 | Dify API 地址（默认 `http://101.35.56.39`） |
 
-| 字段 | 说明 | 是否必填 |
-|------|------|----------|
-| 模型名称 | 自定义显示名称 | 必填 |
-| API Key | Dify API 密钥 | 必填 |
-| Base URL | API 地址（默认为官方地址） | 选填 |
+修改 `.env` 后需重启服务：
+
+```bash
+sudo systemctl restart vastbase-support
+```
 
 官方文档：https://docs.dify.ai/
 
 ### 连通性检测
 
-在添加模型配置时，点击「检测连通性」按钮可以验证配置是否正确：
+部署完成后，可通过以下方式验证服务是否正常：
 
-- **Dify**: 调用参数接口验证 API Key 和服务可达性
+```bash
+# 检查服务状态
+sudo systemctl status vastbase-support
+
+# 检查 Dify API 代理是否正常（应返回 JSON 响应）
+curl http://localhost:8081/api/dify/v1/parameters
+
+# 查看实时日志
+journalctl -u vastbase-support -f
+```
 
 ## 许可证
 
