@@ -17,10 +17,12 @@
           :key="item.route"
           :to="item.route"
           class="nav-item"
-          :class="{ active: isActive(item.route) }"
+          :class="[{ active: isActive(item.route) }, `nav-item--${item.color}`]"
         >
-          <i class="fa" :class="item.icon"></i>
-          <span>{{ item.label }}</span>
+          <span class="nav-item-text">
+            <span class="nav-item-label">{{ item.label }}</span>
+            <span class="nav-item-desc">{{ item.desc }}</span>
+          </span>
         </router-link>
       </nav>
 
@@ -36,10 +38,9 @@
       :key="item.route"
       :to="item.route"
       class="mobile-nav-item"
-      :class="{ active: isActive(item.route) }"
+      :class="[{ active: isActive(item.route) }, `mobile-nav-item--${item.color}`]"
       @click="showMobile = false"
     >
-      <i class="fa" :class="item.icon"></i>
       <span>{{ item.label }}</span>
     </router-link>
   </div>
@@ -53,10 +54,10 @@ const route = useRoute()
 const showMobile = ref(false)
 
 const navItems = [
-  { label: '智能评估', route: '/install', icon: 'fa-cogs' },
-  { label: '智能迁移', route: '/migrate', icon: 'fa-exchange' },
-  { label: '报错答疑', route: '/support', icon: 'fa-comments' },
-  { label: '运维监控', route: '/monitor', icon: 'fa-line-chart' },
+  { label: '智能评估', desc: 'Assessment', route: '/install', icon: 'fa-cogs', color: 'blue' },
+  { label: '智能迁移', desc: 'Migration', route: '/migrate', icon: 'fa-exchange', color: 'purple' },
+  { label: '报错答疑', desc: 'Support', route: '/chat', icon: 'fa-comments', color: 'teal' },
+  { label: '运维监控', desc: 'Monitor', route: '/monitor', icon: 'fa-line-chart', color: 'orange' },
 ]
 
 function isActive(path: string): boolean {
@@ -134,45 +135,148 @@ function isActive(path: string): boolean {
 .nav-desktop {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 20px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 7px 16px 7px 12px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   color: #4E5969;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  position: relative;
+  border: 1px solid transparent;
 }
 
-.nav-item i {
+.nav-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 13px;
-  opacity: 0.7;
+  flex-shrink: 0;
+  transition: all 0.22s;
+  background: #F2F4F7;
+  color: #86909C;
 }
 
-.nav-item:hover {
-  background: #F2F6FF;
+.nav-item-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  gap: 2px;
+}
+
+.nav-item-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.nav-item-desc {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.55;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* color variants - hover */
+.nav-item--blue:hover {
+  background: #EEF3FF;
+  color: #165DFF;
+  border-color: rgba(22, 93, 255, 0.12);
+}
+.nav-item--blue:hover .nav-item-icon {
+  background: rgba(22, 93, 255, 0.12);
   color: #165DFF;
 }
 
-.nav-item:hover i {
-  opacity: 1;
+.nav-item--purple:hover {
+  background: #F3EEFF;
+  color: #7B3FE4;
+  border-color: rgba(123, 63, 228, 0.12);
+}
+.nav-item--purple:hover .nav-item-icon {
+  background: rgba(123, 63, 228, 0.12);
+  color: #7B3FE4;
 }
 
-.nav-item.active {
-  background: linear-gradient(135deg, #165DFF, #4080FF);
+.nav-item--teal:hover {
+  background: #E8FAF5;
+  color: #0D9E6E;
+  border-color: rgba(13, 158, 110, 0.12);
+}
+.nav-item--teal:hover .nav-item-icon {
+  background: rgba(13, 158, 110, 0.12);
+  color: #0D9E6E;
+}
+
+.nav-item--orange:hover {
+  background: #FFF4EC;
+  color: #E07B00;
+  border-color: rgba(224, 123, 0, 0.12);
+}
+.nav-item--orange:hover .nav-item-icon {
+  background: rgba(224, 123, 0, 0.12);
+  color: #E07B00;
+}
+
+/* active states */
+.nav-item--blue.active {
+  background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
   color: white;
-  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.25);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(22, 93, 255, 0.3);
+}
+.nav-item--blue.active .nav-item-icon {
+  background: rgba(255,255,255,0.2);
+  color: white;
 }
 
-.nav-item.active i {
-  opacity: 1;
+.nav-item--purple.active {
+  background: linear-gradient(135deg, #7B3FE4 0%, #9B6FFF 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(123, 63, 228, 0.3);
+}
+.nav-item--purple.active .nav-item-icon {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+
+.nav-item--teal.active {
+  background: linear-gradient(135deg, #0D9E6E 0%, #2DC98A 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(13, 158, 110, 0.3);
+}
+.nav-item--teal.active .nav-item-icon {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+
+.nav-item--orange.active {
+  background: linear-gradient(135deg, #E07B00 0%, #FF9A2E 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(224, 123, 0, 0.3);
+}
+.nav-item--orange.active .nav-item-icon {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+
+.nav-item.active .nav-item-desc {
+  opacity: 0.7;
 }
 
 .mobile-menu-btn {
@@ -214,10 +318,15 @@ function isActive(path: string): boolean {
   transition: all 0.2s;
 }
 
-.mobile-nav-item.active {
-  background: #F2F6FF;
-  color: #165DFF;
-}
+.mobile-nav-item--blue.active { background: #EEF3FF; color: #165DFF; }
+.mobile-nav-item--purple.active { background: #F3EEFF; color: #7B3FE4; }
+.mobile-nav-item--teal.active { background: #E8FAF5; color: #0D9E6E; }
+.mobile-nav-item--orange.active { background: #FFF4EC; color: #E07B00; }
+
+.mobile-nav-item--blue.active .nav-item-icon { background: rgba(22,93,255,0.12); color: #165DFF; }
+.mobile-nav-item--purple.active .nav-item-icon { background: rgba(123,63,228,0.12); color: #7B3FE4; }
+.mobile-nav-item--teal.active .nav-item-icon { background: rgba(13,158,110,0.12); color: #0D9E6E; }
+.mobile-nav-item--orange.active .nav-item-icon { background: rgba(224,123,0,0.12); color: #E07B00; }
 
 @media (max-width: 768px) {
   .nav-desktop {
