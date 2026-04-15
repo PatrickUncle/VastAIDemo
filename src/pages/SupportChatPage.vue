@@ -706,7 +706,7 @@ async function loadConversations() {
   }
 }
 
-async function handleSwitchConversation(convId: string) {
+async function handleSwitchConversation(convId: string, mvsTicketData?: Record<string, any> | null) {
   if (isStreaming.value) return
   stopMessagePolling()
   chatStore.reset()
@@ -724,7 +724,14 @@ async function handleSwitchConversation(convId: string) {
 
     msgs.forEach((msg: any) => {
       if (msg.query) {
-        chatStore.addMessage({ id: generateId(), role: 'user', content: cleanWhitespace(msg.query), timestamp: Date.now() })
+        const isMvsQuery = msg.query.trimStart().startsWith('【MVS工单信息】')
+        chatStore.addMessage({
+          id: generateId(),
+          role: 'user',
+          content: cleanWhitespace(msg.query),
+          timestamp: Date.now(),
+          ticketData: isMvsQuery && mvsTicketData ? mvsTicketData : undefined,
+        })
         userCount++
       }
       if (msg.answer && msg.answer.trim()) {
@@ -812,11 +819,11 @@ async function fetchTicketAndStream(sessionId: string) {
 
     // 已经触发过流式请求（页面刷新/重复访问），不再重复发起
     if (data.alreadyStreamed) {
-      // 如果 server 已记录 conversationId，直接加载历史消息
+      // 如果 server 已记录 conversationId，直接加载历史消息（传入 ticketData 以便历史消息中渲染工单卡片）
       if (data.conversationId) {
         chatStore.setConversationId(data.conversationId)
         streamConversationId.value = data.conversationId
-        await handleSwitchConversation(data.conversationId)
+        await handleSwitchConversation(data.conversationId, data.ticketData || null)
       }
       setStatus('在线', 'online')
       return
