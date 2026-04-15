@@ -4,12 +4,13 @@ const DIFY_BASE = '/api/dify/v1'
 
 const STORAGE_KEY = 'chat_user_id'
 
-// Generate or retrieve a persistent unique userId per browser session
+// Generate or retrieve a unique userId per browser session
+// Uses sessionStorage so each session (including incognito) gets a fresh ID
 function getOrCreateUserId(): string {
-  let id = localStorage.getItem(STORAGE_KEY)
+  let id = sessionStorage.getItem(STORAGE_KEY)
   if (!id) {
     id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-    localStorage.setItem(STORAGE_KEY, id)
+    sessionStorage.setItem(STORAGE_KEY, id)
   }
   return id
 }

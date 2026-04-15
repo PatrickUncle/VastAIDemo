@@ -302,11 +302,8 @@ import type { ChatMessage, Conversation, DifyFile, MessageSegment } from '@/type
 const route = useRoute()
 const chatStore = useChatStore()
 
-// Determine userId: MVS sessions use the session_id as user, others use default
-const userId = computed(() => {
-  const sessionId = route.query.session_id as string
-  return sessionId ? sessionId : DEFAULT_USER_ID
-})
+// Always use the browser-unique userId; session_id is only for fetching ticket data
+const userId = computed(() => DEFAULT_USER_ID)
 
 const suggestions = [
   '如何排查 vastbase 连接超时问题？',
@@ -324,7 +321,7 @@ const {
   sendMessage: streamSend,
   reset: streamReset,
 } = useStreamChat({
-  userId: userId.value,
+  userId: () => userId.value,
   onFinish(fullText) {
     const parsed = parseAnswer(fullText)
     chatStore.addMessage({

@@ -6,7 +6,7 @@ interface UseStreamChatOptions {
   onChunk?: (delta: string, fullText: string) => void
   onFinish?: (fullText: string, conversationId: string) => void
   onError?: (error: Error) => void
-  userId?: string
+  userId?: string | (() => string)
 }
 
 const MAX_RETRIES = 5
@@ -107,12 +107,13 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       abortController.value = controller
 
       try {
+        const resolvedUserId = typeof options.userId === 'function' ? options.userId() : options.userId
         const stream = streamChatMessage(
           query,
           existingConversationId || conversationId.value || undefined,
           files as any,
           controller.signal,
-          options.userId,
+          resolvedUserId,
         )
 
         for await (const event of stream) {

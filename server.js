@@ -45,6 +45,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
+
     if (pathname === '/api/health' && req.method === 'GET') {
         handleHealthCheck(req, res);
         return;
