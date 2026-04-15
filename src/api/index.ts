@@ -2,8 +2,20 @@ import type { DifyChatRequest, DifySSEEvent } from '@/types'
 
 const DIFY_BASE = '/api/dify/v1'
 
-// Default user for regular chat page
-export const DEFAULT_USER_ID = 'chat-user'
+const STORAGE_KEY = 'chat_user_id'
+
+// Generate or retrieve a persistent unique userId per browser session
+function getOrCreateUserId(): string {
+  let id = localStorage.getItem(STORAGE_KEY)
+  if (!id) {
+    id = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    localStorage.setItem(STORAGE_KEY, id)
+  }
+  return id
+}
+
+// Default user for regular chat page — unique per browser
+export const DEFAULT_USER_ID = getOrCreateUserId()
 
 export async function* streamChatMessage(
   query: string,

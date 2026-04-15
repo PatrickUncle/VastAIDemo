@@ -142,14 +142,36 @@
                       class="mb-2"
                     />
                     <div class="assistant-bubble">
-                      <div v-if="msg.beforeThink" v-html="renderMarkdown(msg.beforeThink)" class="mb-2" />
-                      <ThinkBlock
-                        v-if="msg.thinkContent"
-                        :content="msg.thinkContent"
-                        :streaming="false"
-                        :class="msg.content ? 'mb-2' : ''"
-                      />
-                      <div v-if="msg.content" class="markdown-content" v-html="renderContent(msg.content)" />
+                      <template v-if="msg.segments && msg.segments.length">
+                        <template v-for="(seg, i) in msg.segments" :key="i">
+                          <ThinkBlock
+                            v-if="seg.type === 'think'"
+                            :content="seg.content"
+                            :streaming="false"
+                            class="mb-2"
+                          />
+                          <div v-else class="markdown-content mb-2" v-html="renderContent(seg.content)" />
+                        </template>
+                      </template>
+                      <template v-else>
+                        <div v-if="msg.beforeThink" v-html="renderMarkdown(msg.beforeThink)" class="mb-2" />
+                        <template v-if="msg.thinkBlocks && msg.thinkBlocks.length">
+                          <ThinkBlock
+                            v-for="(block, i) in msg.thinkBlocks"
+                            :key="i"
+                            :content="block"
+                            :streaming="false"
+                            class="mb-2"
+                          />
+                        </template>
+                        <ThinkBlock
+                          v-else-if="msg.thinkContent"
+                          :content="msg.thinkContent"
+                          :streaming="false"
+                          :class="msg.content ? 'mb-2' : ''"
+                        />
+                        <div v-if="msg.content" class="markdown-content" v-html="renderContent(msg.content)" />
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -168,15 +190,18 @@
                     class="mb-2"
                   />
                   <div class="assistant-bubble">
-                    <div v-if="streamingParts.before" v-html="renderMarkdown(streamingParts.before)" :class="streamingParts.think ? 'mb-2' : ''" />
-                    <ThinkBlock
-                      v-if="streamingParts.think"
-                      :content="streamingParts.think"
-                      :streaming="streamingParts.thinkOpen"
-                      :class="streamingParts.after ? 'mb-2' : ''"
-                    />
-                    <div v-if="streamingParts.after" v-html="renderMarkdown(streamingParts.after)" />
-                    <div v-if="!streamingParts.before && !streamingParts.think && !streamingParts.after" class="typing-dots">
+                    <template v-if="streamingParts.hasContent">
+                      <template v-for="(seg, i) in streamingParts.segments" :key="i">
+                        <ThinkBlock
+                          v-if="seg.type === 'think'"
+                          :content="seg.content"
+                          :streaming="!!seg.open"
+                          class="mb-2"
+                        />
+                        <div v-else class="markdown-content mb-2" v-html="renderMarkdown(seg.content)" />
+                      </template>
+                    </template>
+                    <div v-else class="typing-dots">
                       <span /><span /><span />
                     </div>
                   </div>
@@ -272,7 +297,7 @@ import {
   DEFAULT_USER_ID,
 } from '@/api'
 import { generateId, formatTime, exportCurrentConversation } from '@/utils'
-import type { ChatMessage, Conversation, DifyFile } from '@/types'
+import type { ChatMessage, Conversation, DifyFile, MessageSegment } from '@/types'
 
 const route = useRoute()
 const chatStore = useChatStore()
@@ -308,6 +333,8 @@ const {
       content: parsed.content,
       timestamp: Date.now(),
       thinkContent: parsed.thinkContent,
+      thinkBlocks: parsed.thinkBlocks,
+      segments: parsed.segments,
       beforeThink: parsed.beforeThink,
       workflowNodes: workflowNodes.value.length ? [...workflowNodes.value] : undefined,
     })
@@ -392,18 +419,36 @@ function setStatus(text: string, type: StatusType) {
 
 const streamingParts = computed(() => {
   const text = streamingText.value
-  const thinkStart = text.indexOf('<think>')
-  if (thinkStart === -1) {
-    return { before: cleanWhitespace(text).trim(), think: '', after: '', thinkOpen: false }
+  const segments: Array<{ type: 'text' | 'think'; content: string; open?: boolean }> = []
+
+  const thinkRegex = /<think>([\s\S]*?)<\/think>/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = thinkRegex.exec(text)) !== null) {
+    const textBefore = cleanWhitespace(text.slice(lastIndex, match.index)).trim()
+    if (textBefore) segments.push({ type: 'text', content: unwrapOuterCodeFence(textBefore) })
+    segments.push({ type: 'think', content: match[1].trim(), open: false })
+    lastIndex = match.index + match[0].length
   }
-  const before = cleanWhitespace(text.slice(0, thinkStart)).trim()
-  const thinkEnd = text.indexOf('</think>', thinkStart)
-  if (thinkEnd === -1) {
-    return { before, think: text.slice(thinkStart + 7), after: '', thinkOpen: true }
+
+  // Check for unclosed <think> at the end
+  const lastOpenIdx = text.lastIndexOf('<think>')
+  const lastCloseIdx = text.lastIndexOf('</think>')
+  const thinkOpen = lastOpenIdx > lastCloseIdx
+
+  if (thinkOpen) {
+    const textBefore = cleanWhitespace(text.slice(lastIndex, lastOpenIdx)).trim()
+    if (textBefore) segments.push({ type: 'text', content: unwrapOuterCodeFence(textBefore) })
+    const partialThink = text.slice(lastOpenIdx + 7).trim()
+    segments.push({ type: 'think', content: partialThink, open: true })
+  } else {
+    const textAfter = cleanWhitespace(text.slice(lastIndex)).trim()
+    if (textAfter) segments.push({ type: 'text', content: unwrapOuterCodeFence(textAfter) })
   }
-  const think = text.slice(thinkStart + 7, thinkEnd)
-  const after = cleanWhitespace(text.slice(thinkEnd + 8)).trim()
-  return { before, think, after, thinkOpen: false }
+
+  const hasContent = segments.length > 0
+  return { segments, hasContent }
 })
 
 // Polling state
@@ -455,23 +500,45 @@ function cleanWhitespace(text: string): string {
   return cleaned.trim()
 }
 
-function parseAnswer(raw: string): { beforeThink?: string; thinkContent?: string; content: string } {
+function unwrapOuterCodeFence(text: string): string {
+  // If the entire text is wrapped in a plain ``` fence (no language tag), unwrap it
+  const match = text.match(/^```\s*\n([\s\S]*?)\n?```\s*$/)
+  if (match) return match[1].trim()
+  return text
+}
+
+function parseAnswer(raw: string): { beforeThink?: string; thinkContent?: string; thinkBlocks?: string[]; segments: MessageSegment[]; content: string } {
+  // Build ordered segments preserving interleaved think/text positions
+  const segments: MessageSegment[] = []
   const thinkRegex = /<think>([\s\S]*?)<\/think>/gi
-  const thinkParts: string[] = []
+  let lastIndex = 0
   let match: RegExpExecArray | null
+
+  while ((match = thinkRegex.exec(raw)) !== null) {
+    const textBefore = cleanWhitespace(raw.slice(lastIndex, match.index)).trim()
+    if (textBefore) segments.push({ type: 'text', content: cleanImageTags(unwrapOuterCodeFence(textBefore)) })
+    const thinkContent = match[1].trim()
+    if (thinkContent) segments.push({ type: 'think', content: thinkContent })
+    lastIndex = match.index + match[0].length
+  }
+
+  const textAfter = cleanWhitespace(raw.slice(lastIndex)).trim()
+  if (textAfter) segments.push({ type: 'text', content: cleanImageTags(unwrapOuterCodeFence(textAfter)) })
+
+  // Legacy fields for backward compat
+  const thinkParts = segments.filter(s => s.type === 'think').map(s => s.content)
   const firstThinkIdx = raw.search(/<think>/i)
   const beforeThink = firstThinkIdx > 0 ? cleanWhitespace(raw.slice(0, firstThinkIdx)).trim() : undefined
-  while ((match = thinkRegex.exec(raw)) !== null) {
-    const t = match[1].trim()
-    if (t) thinkParts.push(t)
-  }
   let content = raw.replace(/<think>[\s\S]*?<\/think>/gi, '')
   content = content.replace(/<think&gt;[\s\S]*?<\/think&gt;/gi, '')
   content = cleanImageTags(content)
-  content = cleanWhitespace(content).trim()
+  content = unwrapOuterCodeFence(cleanWhitespace(content).trim())
+
   return {
     beforeThink: beforeThink || undefined,
     thinkContent: thinkParts.length ? thinkParts.join('\n\n---\n\n') : undefined,
+    thinkBlocks: thinkParts.length ? thinkParts : undefined,
+    segments,
     content,
   }
 }
@@ -654,7 +721,7 @@ async function handleSwitchConversation(convId: string) {
   try {
     setStatus('加载中...', 'loading')
     const data = await fetchConversationMessages(convId, userId.value)
-    const msgs = (data as any[]).reverse()
+    const msgs = data as any[]
     let assistantCount = 0
     let userCount = 0
 
@@ -665,7 +732,7 @@ async function handleSwitchConversation(convId: string) {
       }
       if (msg.answer && msg.answer.trim()) {
         const parsed = parseAnswer(msg.answer)
-        chatStore.addMessage({ id: generateId(), role: 'assistant', content: parsed.content, timestamp: Date.now(), thinkContent: parsed.thinkContent, beforeThink: parsed.beforeThink })
+        chatStore.addMessage({ id: generateId(), role: 'assistant', content: parsed.content, timestamp: Date.now(), thinkContent: parsed.thinkContent, thinkBlocks: parsed.thinkBlocks, segments: parsed.segments, beforeThink: parsed.beforeThink })
         assistantCount++
       }
     })
@@ -696,14 +763,14 @@ function stopMessagePolling() {
 async function checkForNewMessages(convId: string, lastCount: number): Promise<boolean> {
   try {
     const data = await fetchConversationMessages(convId, userId.value)
-    const msgs = (data as any[]).reverse()
+    const msgs = data as any[]
     const allAssistant = msgs.filter((m: any) => m.answer && m.answer.trim())
     const newMessages = allAssistant.slice(lastCount)
     if (newMessages.length > 0) {
       stopMessagePolling()
       newMessages.forEach((msg: any) => {
         const parsed = parseAnswer(msg.answer)
-        chatStore.addMessage({ id: generateId(), role: 'assistant', content: parsed.content, timestamp: Date.now(), thinkContent: parsed.thinkContent, beforeThink: parsed.beforeThink })
+        chatStore.addMessage({ id: generateId(), role: 'assistant', content: parsed.content, timestamp: Date.now(), thinkContent: parsed.thinkContent, thinkBlocks: parsed.thinkBlocks, segments: parsed.segments, beforeThink: parsed.beforeThink })
       })
       scrollToBottom()
       setStatus('在线', 'online')
@@ -745,6 +812,19 @@ async function fetchTicketAndStream(sessionId: string) {
       ticketData: data.ticketData || null,
     })
     scrollToBottom()
+
+    // 已经触发过流式请求（页面刷新/重复访问），不再重复发起
+    if (data.alreadyStreamed) {
+      // 如果 server 已记录 conversationId，直接加载历史消息
+      if (data.conversationId) {
+        chatStore.setConversationId(data.conversationId)
+        streamConversationId.value = data.conversationId
+        await handleSwitchConversation(data.conversationId)
+      }
+      setStatus('在线', 'online')
+      return
+    }
+
     setStatus('正在思考...', 'thinking')
 
     // 直接发起流式请求
@@ -753,6 +833,16 @@ async function fetchTicketAndStream(sessionId: string) {
     if (streamConversationId.value && !chatStore.currentConversationId) {
       chatStore.setConversationId(streamConversationId.value)
     }
+
+    // 将 conversationId 回传给 server，供后续刷新时加载历史
+    if (streamConversationId.value) {
+      fetch(`/api/mvs/ticket/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: streamConversationId.value }),
+      }).catch(() => {})
+    }
+
     await loadConversations()
   } catch (err: any) {
     chatStore.addMessage({

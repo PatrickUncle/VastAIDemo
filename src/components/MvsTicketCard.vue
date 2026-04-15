@@ -95,7 +95,7 @@ function cleanHtml(html: string): string {
 }
 
 .ticket-header {
-  background: linear-gradient(135deg, #165DFF 0%, #4080FF 100%);
+  background: linear-gradient(135deg, #1890FF 0%, #69C0FF 100%);
   padding: 14px 18px;
   color: #fff;
 }
@@ -148,7 +148,7 @@ function cleanHtml(html: string): string {
 }
 
 .section-title i {
-  color: #165DFF;
+  color: #1890FF;
 }
 
 .record-count {
@@ -243,7 +243,7 @@ function cleanHtml(html: string): string {
 }
 
 .timeline-item.engineer .timeline-dot {
-  background: #165DFF;
+  background: #1890FF;
 }
 
 .timeline-item.user .timeline-dot {
@@ -271,8 +271,8 @@ function cleanHtml(html: string): string {
 
 .timeline-tag {
   font-size: 11px;
-  background: #EEF3FF;
-  color: #165DFF;
+  background: #E6F4FF;
+  color: #1890FF;
   border-radius: 4px;
   padding: 1px 6px;
 }
@@ -300,7 +300,7 @@ function cleanHtml(html: string): string {
 }
 
 .timeline-content :deep(a) {
-  color: #165DFF;
+  color: #1890FF;
   text-decoration: none;
 }
 </style>

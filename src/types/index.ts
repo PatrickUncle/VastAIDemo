@@ -40,6 +40,10 @@ export interface WorkflowNode {
   totalTokens?: number
 }
 
+export type MessageSegment =
+  | { type: 'text'; content: string }
+  | { type: 'think'; content: string }
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -48,7 +52,9 @@ export interface ChatMessage {
   loading?: boolean
   files?: { name: string }[]
   thinkContent?: string
+  thinkBlocks?: string[]
   beforeThink?: string
+  segments?: MessageSegment[]
   workflowNodes?: WorkflowNode[]
   ticketData?: Record<string, any> | null
 }

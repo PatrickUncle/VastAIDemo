@@ -62,6 +62,10 @@ const server = http.createServer((req, res) => {
         handleMvsTicket(req, res, ticketMatch[1]);
         return;
     }
+    if (ticketMatch && req.method === 'PATCH') {
+        handleMvsTicketUpdate(req, res, ticketMatch[1]);
+        return;
+    }
 
     serveStaticFile(req, res, pathname);
 });
@@ -232,8 +236,49 @@ function handleMvsTicket(req, res, sessionId) {
         return;
     }
 
+    const alreadyStreamed = task.streamed === true;
+    // 标记为已触发，后续访问不再自动发起流式请求
+    if (!alreadyStreamed) {
+        task.streamed = true;
+    }
+
     res.writeHead(200);
-    res.end(JSON.stringify({ success: true, query: task.query, ticketData: task.ticketData || null, sessionId }));
+    res.end(JSON.stringify({
+        success: true,
+        query: task.query,
+        ticketData: task.ticketData || null,
+        sessionId,
+        alreadyStreamed,
+        conversationId: task.conversationId || null,
+    }));
+}
+
+function handleMvsTicketUpdate(req, res, sessionId) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+
+    const task = mvsTaskMap.get(sessionId);
+    if (!task) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ success: false, message: '工单不存在或已过期' }));
+        return;
+    }
+
+    const body = [];
+    req.on('data', chunk => body.push(chunk));
+    req.on('end', () => {
+        try {
+            const data = JSON.parse(Buffer.concat(body).toString('utf8'));
+            if (data.conversationId) {
+                task.conversationId = data.conversationId;
+            }
+            res.writeHead(200);
+            res.end(JSON.stringify({ success: true }));
+        } catch {
+            res.writeHead(400);
+            res.end(JSON.stringify({ success: false, message: '无效的 JSON' }));
+        }
+    });
 }
 
 function handleMvsSubmit(req, res) {
