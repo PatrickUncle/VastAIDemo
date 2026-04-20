@@ -82,7 +82,7 @@
         </header>
 
         <!-- Messages -->
-        <div ref="messagesContainerRef" class="messages-area">
+        <div ref="messagesContainerRef" class="messages-area" @scroll="onMessagesScroll">
           <!-- Welcome screen -->
           <div v-if="chatStore.messages.length === 0 && !isStreaming" class="welcome-screen">
             <div class="welcome-avatar">
@@ -212,19 +212,13 @@
         </div>
 
         <!-- Input area -->
-        <div class="input-area">
-          <!-- File previews -->
-          <div v-if="uploadedFiles.length" class="file-previews">
-            <div v-for="(file, index) in uploadedFiles" :key="index" class="file-preview-tag">
-              <i class="fa fa-file-text-o" />
-              <span>{{ file.name }}</span>
-              <span class="file-size">{{ formatFileSize(file.size) }}</span>
-              <button class="file-remove" @click="removeFile(index)">
-                <i class="fa fa-times" />
-              </button>
-            </div>
-          </div>
-
+        <div
+          class="input-area"
+          @dragenter.prevent="onDragEnter"
+          @dragover.prevent="onDragOver"
+          @dragleave="onDragLeave"
+          @drop.prevent="onDrop"
+        >
           <!-- Attach popup -->
           <div v-if="attachPanelOpen" class="attach-panel" ref="attachPanelRef" @click.stop>
             <div class="attach-panel-inner">
@@ -247,14 +241,35 @@
             </div>
           </div>
 
-          <div class="input-row">
+          <div class="input-row" :class="{ 'drag-over': isDragOver }">
+            <!-- File previews inside input box -->
+            <div v-if="uploadedFiles.length" class="file-previews">
+              <div v-for="(file, index) in uploadedFiles" :key="index" class="file-preview-card">
+                <button class="file-card-remove" @click.stop="removeFile(index)" title="删除">×</button>
+                <div class="file-card-body" @click="isImageFile(file) ? openImagePreview(getFilePreviewUrl(file)) : null" :class="{ 'is-image': isImageFile(file) }">
+                  <span class="file-card-name">{{ file.name }}</span>
+                  <span class="file-card-meta">
+                    <i class="fa fa-file-text file-card-type-icon" />
+                    {{ getFileExt(file).toUpperCase() }} · {{ formatFileSize(file.size) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Image preview lightbox -->
+            <div v-if="previewImageUrl" class="img-lightbox" @click="previewImageUrl = ''">
+              <img :src="previewImageUrl" @click.stop />
+              <button class="img-lightbox-close" @click="previewImageUrl = ''">×</button>
+            </div>
+            <div class="input-bottom-row">
             <input
               ref="inputRef"
               v-model="inputText"
               type="text"
-              placeholder="和 Bot 聊天"
+              placeholder="和 VastAIDemo-V0.0.3 聊天"
               class="chat-input"
               @keypress.enter.exact="handleSend"
+              @paste="onPaste"
             />
             <button ref="attachToggleRef" class="attach-toggle-btn" title="上传文件" @click.stop="toggleAttachPanel">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
@@ -272,6 +287,7 @@
               </svg>
               <i v-else class="fa fa-stop" />
             </button>
+            </div>
           </div>
           <div class="input-hint">按 Enter 发送 · 支持上传日志、截图等文件</div>
         </div>
@@ -359,6 +375,96 @@ const sidebarOpen = ref(false)
 const attachPanelOpen = ref(false)
 const attachPanelRef = ref<HTMLDivElement>()
 const fileUrlInput = ref('')
+const isDragOver = ref(false)
+let dragCounter = 0
+const previewImageUrl = ref('')
+
+function openImagePreview(url: string) {
+  previewImageUrl.value = url
+}
+
+// ── File helpers ──────────────────────────────────────────────
+const MAX_FILE_COUNT = 10
+const MAX_DOC_SIZE = 15 * 1024 * 1024   // 15 MB
+const MAX_IMG_SIZE = 10 * 1024 * 1024   // 10 MB
+
+function isImageFile(file: File) {
+  return file.type.startsWith('image/')
+}
+
+function getFileExt(file: File) {
+  return file.name.split('.').pop() || 'FILE'
+}
+
+const previewUrls = new Map<File, string>()
+function getFilePreviewUrl(file: File) {
+  if (!previewUrls.has(file)) {
+    previewUrls.set(file, URL.createObjectURL(file))
+  }
+  return previewUrls.get(file)!
+}
+
+function validateAndAddFiles(files: File[]) {
+  const errors: string[] = []
+  const toAdd: File[] = []
+
+  for (const file of files) {
+    const isImg = isImageFile(file)
+    const maxSize = isImg ? MAX_IMG_SIZE : MAX_DOC_SIZE
+    const label = isImg ? '图片' : '文档'
+    const maxLabel = isImg ? '10.00 MB' : '15.00 MB'
+
+    if (file.size > maxSize) {
+      errors.push(`「${file.name}」超出${label}最大支持文件大小（${maxLabel}）`)
+      continue
+    }
+    toAdd.push(file)
+  }
+
+  const remaining = MAX_FILE_COUNT - uploadedFiles.value.length
+  if (toAdd.length > remaining) {
+    errors.push(`最多上传 ${MAX_FILE_COUNT} 个文件，当前已超出限制`)
+    toAdd.splice(remaining)
+  }
+
+  uploadedFiles.value.push(...toAdd)
+
+  if (errors.length) {
+    alert(errors.join('\n'))
+  }
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────
+function onDragEnter(e: DragEvent) {
+  dragCounter++
+  if (e.dataTransfer?.types.includes('Files')) isDragOver.value = true
+}
+
+function onDragOver(e: DragEvent) {
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+function onDragLeave() {
+  dragCounter--
+  if (dragCounter <= 0) { dragCounter = 0; isDragOver.value = false }
+}
+
+function onDrop(e: DragEvent) {
+  dragCounter = 0
+  isDragOver.value = false
+  const files = Array.from(e.dataTransfer?.files || [])
+  if (files.length) validateAndAddFiles(files)
+}
+
+// ── Paste ─────────────────────────────────────────────────────
+function onPaste(e: ClipboardEvent) {
+  const items = Array.from(e.clipboardData?.items || [])
+  const imageItems = items.filter(i => i.kind === 'file' && i.type.startsWith('image/'))
+  if (!imageItems.length) return
+  e.preventDefault()
+  const files = imageItems.map(i => i.getAsFile()).filter(Boolean) as File[]
+  validateAndAddFiles(files)
+}
 
 function toggleAttachPanel() {
   attachPanelOpen.value = !attachPanelOpen.value
@@ -372,7 +478,7 @@ function handleUrlAttach() {
   // We store the URL in a Blob so File.name holds the URL
   const blob = new Blob([url], { type: 'text/uri-list' })
   const urlFile = new File([blob], url, { type: 'text/uri-list' })
-  if (uploadedFiles.value.length < 5) {
+  if (uploadedFiles.value.length < MAX_FILE_COUNT) {
     uploadedFiles.value.push(urlFile)
   }
   fileUrlInput.value = ''
@@ -562,6 +668,21 @@ function scrollToBottom() {
   })
 }
 
+// Auto-scroll: only scroll if user hasn't manually scrolled up
+const userScrolledUp = ref(false)
+
+function onMessagesScroll() {
+  const el = messagesContainerRef.value
+  if (!el) return
+  // Consider "at bottom" if within 80px of the bottom
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  userScrolledUp.value = !atBottom
+}
+
+function scrollToBottomIfNeeded() {
+  if (!userScrolledUp.value) scrollToBottom()
+}
+
 function toggleSidebar() { sidebarOpen.value = !sidebarOpen.value }
 function closeSidebar() { sidebarOpen.value = false }
 
@@ -599,14 +720,20 @@ function formatConvTime(ts: string | number): string {
 
 function handleFileSelect(e: Event) {
   const target = e.target as HTMLInputElement
-  Array.from(target.files || []).forEach((file) => {
-    if (uploadedFiles.value.length < 5) uploadedFiles.value.push(file)
-  })
+  const files = Array.from(target.files || [])
+  if (files.length) validateAndAddFiles(files)
   target.value = ''
   attachPanelOpen.value = false
 }
 
-function removeFile(index: number) { uploadedFiles.value.splice(index, 1) }
+function removeFile(index: number) {
+  const file = uploadedFiles.value[index]
+  if (previewUrls.has(file)) {
+    URL.revokeObjectURL(previewUrls.get(file)!)
+    previewUrls.delete(file)
+  }
+  uploadedFiles.value.splice(index, 1)
+}
 
 function useSuggestion(text: string) {
   inputText.value = text
@@ -629,6 +756,7 @@ async function handleSend() {
     files: currentFiles.map((f) => ({ name: f.name })),
   })
 
+  userScrolledUp.value = false
   scrollToBottom()
   setStatus('正在思考...', 'thinking')
 
@@ -891,8 +1019,8 @@ function updatePollingStatus() {
   statusType.value = 'thinking'
 }
 
-watch(() => chatStore.messages.length, () => scrollToBottom())
-watch(streamingText, () => scrollToBottom())
+watch(() => chatStore.messages.length, () => scrollToBottomIfNeeded())
+watch(streamingText, () => scrollToBottomIfNeeded())
 
 onMounted(async () => {
   document.addEventListener('click', handleClickOutsideAttach)
@@ -1553,55 +1681,161 @@ onUnmounted(() => {
   position: relative;
 }
 
+/* File preview cards */
 .file-previews {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 8px;
+  padding: 12px 12px 4px;
 }
 
-.file-preview-tag {
+.file-preview-card {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  width: 190px;
+  background: white;
+  border: 1.5px solid #E5E6EB;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  overflow: visible;
+}
+
+.file-card-remove {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 1.5px solid #D0D3D9;
+  cursor: pointer;
+  color: #4E5969;
+  font-size: 14px;
+  line-height: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  background: #F7F8FC;
-  border: 1px solid rgba(0,0,0,0.07);
-  border-radius: 8px;
+  justify-content: center;
+  transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  z-index: 3;
+  padding: 0;
+}
+
+.file-card-remove:hover {
+  background: #F53F3F;
+  border-color: #F53F3F;
+  color: white;
+}
+
+.file-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.file-card-body.is-image {
+  cursor: zoom-in;
+}
+
+.file-card-body.is-image:hover .file-card-name {
+  color: #165DFF;
+}
+
+.file-card-name {
   font-size: 12px;
+  font-weight: 600;
+  color: #1D2129;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
   color: #4E5969;
 }
 
-.file-size { color: #86909C; }
-
-.file-remove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #86909C;
-  padding: 0;
-  font-size: 11px;
-  line-height: 1;
-  transition: color 0.15s;
+.file-card-type-icon {
+  font-size: 13px;
+  color: #4080FF;
+  flex-shrink: 0;
 }
 
-.file-remove:hover { color: #F53F3F; }
+/* Image lightbox */
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.img-lightbox img {
+  max-width: 90vw;
+  max-height: 88vh;
+  border-radius: 10px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  cursor: default;
+}
+
+.img-lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.img-lightbox-close:hover { background: rgba(255,255,255,0.25); }
 
 .input-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #F7F8FC;
-  border: 1.5px solid rgba(0,0,0,0.08);
+  flex-direction: column;
+  background: white;
+  border: 1.5px solid rgba(0,0,0,0.1);
   border-radius: 16px;
-  padding: 6px 6px 6px 14px;
+  overflow: visible;
   transition: all 0.2s;
 }
 
 .input-row:focus-within {
-  border-color: #165DFF;
-  background: white;
-  box-shadow: 0 0 0 3px rgba(22, 93, 255, 0.08);
+  border-color: rgba(0,0,0,0.15);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.input-row.drag-over {
+  border: 2px dashed #165DFF;
+  background: rgba(22, 93, 255, 0.03);
+}
+
+.input-bottom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
 }
 
 .attach-btn {

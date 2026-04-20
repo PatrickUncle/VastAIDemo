@@ -40,6 +40,24 @@
         <div class="desc-content" v-html="problemDesc" />
       </div>
 
+      <!-- 附件 -->
+      <div v-if="attachments.length" class="ticket-section">
+        <div class="section-title"><i class="fa fa-paperclip" /> 附件</div>
+        <div class="attachment-list">
+          <a
+            v-for="(url, i) in attachments"
+            :key="i"
+            :href="url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="attachment-item"
+          >
+            <i :class="attachmentIcon(url)" />
+            <span>{{ attachmentName(url) }}</span>
+          </a>
+        </div>
+      </div>
+
       <!-- 沟通记录 -->
       <div v-if="records.length" class="ticket-section">
         <div class="section-title">
@@ -72,6 +90,20 @@ const props = defineProps<{ ticket: Record<string, any> }>()
 const problemDesc = computed(() => cleanHtml(props.ticket['问题信息']?.['问题描述'] || ''))
 
 const records = computed(() => props.ticket['沟通记录'] || [])
+
+const attachments = computed<string[]>(() => props.ticket['问题信息']?.['附件'] || [])
+
+function attachmentName(url: string): string {
+  try { return decodeURIComponent(url.split('/').pop() || url) } catch { return url }
+}
+
+function attachmentIcon(url: string): string {
+  const ext = url.split('.').pop()?.toLowerCase() || ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'fa fa-file-image-o'
+  if (ext === 'pdf') return 'fa fa-file-pdf-o'
+  if (['txt', 'log'].includes(ext)) return 'fa fa-file-text-o'
+  return 'fa fa-file-o'
+}
 
 function cleanHtml(html: string): string {
   if (!html) return ''
@@ -188,6 +220,37 @@ function cleanHtml(html: string): string {
 .tag-val {
   color: #1D2129;
   padding: 3px 8px;
+}
+
+/* Attachments */
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attachment-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  background: #f7f8fc;
+  border: 1px solid #e5e8ef;
+  border-radius: 6px;
+  color: #1890FF;
+  font-size: 12px;
+  text-decoration: none;
+  word-break: break-all;
+  transition: background 0.15s;
+}
+
+.attachment-item:hover {
+  background: #e6f4ff;
+}
+
+.attachment-item i {
+  flex-shrink: 0;
+  font-size: 14px;
 }
 
 /* Description */
