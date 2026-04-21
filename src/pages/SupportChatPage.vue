@@ -35,7 +35,9 @@
               :class="{ active: chatStore.currentConversationId === conv.id }"
               @click="handleSwitchConversation(conv.id)"
             >
-              <div class="conv-dot" />
+              <div class="conv-icon">
+                <i class="fa fa-comments" />
+              </div>
               <div class="conv-meta">
                 <div class="conv-title">{{ conv.title || '未命名对话' }}</div>
                 <div class="conv-time">{{ formatConvTime(conv.updatedAt || conv.createdAt) }}</div>
@@ -139,6 +141,7 @@
                       v-if="msg.workflowNodes && msg.workflowNodes.length"
                       :nodes="msg.workflowNodes"
                       :running="false"
+                      :done="true"
                       class="mb-2"
                     />
                     <div class="assistant-bubble">
@@ -1243,16 +1246,24 @@ onUnmounted(() => {
   background: rgba(22, 93, 255, 0.08);
 }
 
-.conv-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #C9CDD4;
+.conv-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f0f2f5;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
-.conv-item.active .conv-dot { background: #165DFF; }
+.conv-item.active .conv-icon {
+  background: rgba(22, 93, 255, 0.12);
+  color: #165DFF;
+}
 
 .conv-meta { flex: 1; min-width: 0; }
 
