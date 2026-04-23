@@ -353,12 +353,12 @@
 
         <template v-else>
           <div class="feedback-dialog-body">
-            <p class="feedback-label">这条回答对您有帮助吗？</p>
+            <p class="feedback-label">这条回答对您有帮助吗？<span class="feedback-required">*</span></p>
             <div class="feedback-rating-row">
               <button
                 class="feedback-rating-btn"
                 :class="{ active: feedbackRating === 'like' }"
-                @click="feedbackRating = feedbackRating === 'like' ? null : 'like'"
+                @click="feedbackRating = 'like'"
               >
                 <i class="fa fa-thumbs-up" />
                 有帮助
@@ -366,12 +366,13 @@
               <button
                 class="feedback-rating-btn dislike"
                 :class="{ active: feedbackRating === 'dislike' }"
-                @click="feedbackRating = feedbackRating === 'dislike' ? null : 'dislike'"
+                @click="feedbackRating = 'dislike'"
               >
                 <i class="fa fa-thumbs-down" />
                 没帮助
               </button>
             </div>
+            <p v-if="feedbackRatingTouched && !feedbackRating" class="feedback-rating-hint">请选择评分后再提交</p>
 
             <p class="feedback-label" style="margin-top:16px">补充说明（可选）</p>
             <textarea
@@ -393,7 +394,7 @@
             <button class="feedback-cancel-btn" @click="closeFeedback">取消</button>
             <button
               class="feedback-submit-btn"
-              :disabled="feedbackSubmitting || (!feedbackRating && !feedbackContent.trim())"
+              :disabled="feedbackSubmitting || !feedbackRating"
               @click="submitFeedback"
             >
               <i v-if="feedbackSubmitting" class="fa fa-spinner fa-spin" />
@@ -808,6 +809,7 @@ const feedbackModal = ref(false)
 const feedbackMessageId = ref<string | undefined>(undefined)
 const feedbackConversationId = ref<string | undefined>(undefined)
 const feedbackRating = ref<'like' | 'dislike' | null>(null)
+const feedbackRatingTouched = ref(false)
 const feedbackContent = ref('')
 const feedbackSubmitting = ref(false)
 const feedbackDone = ref(false)
@@ -816,6 +818,7 @@ function openFeedback(messageId?: string, rating?: 'like' | 'dislike') {
   feedbackMessageId.value = messageId
   feedbackConversationId.value = chatStore.currentConversationId || streamConversationId.value || undefined
   feedbackRating.value = rating ?? null
+  feedbackRatingTouched.value = false
   feedbackContent.value = ''
   feedbackDone.value = false
   feedbackModal.value = true
@@ -826,6 +829,8 @@ function closeFeedback() {
 }
 
 async function submitFeedback() {
+  feedbackRatingTouched.value = true
+  if (!feedbackRating.value) return
   if (feedbackSubmitting.value) return
   feedbackSubmitting.value = true
   try {
@@ -2548,6 +2553,17 @@ onUnmounted(() => {
   font-weight: 600;
   color: #4E5969;
   margin: 0 0 10px;
+}
+
+.feedback-required {
+  color: #F53F3F;
+  margin-left: 3px;
+}
+
+.feedback-rating-hint {
+  font-size: 12px;
+  color: #F53F3F;
+  margin: 6px 0 0;
 }
 
 .feedback-rating-row {

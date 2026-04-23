@@ -417,26 +417,6 @@
             <div v-else-if="chatItems.length === 0 && detailRecords.length === 0" class="fb-empty">暂无数据</div>
 
             <template v-else>
-              <!-- Chat messages -->
-              <div class="fb-messages" v-if="chatItems.length > 0">
-                <template v-for="item in chatItems" :key="item.key">
-                  <div v-if="item.type === 'user'" class="fb-msg-row user">
-                    <div class="fb-user-wrap">
-                      <div class="fb-user-bubble"><div class="fb-md" v-html="renderMd(item.content)" /></div>
-                      <div class="fb-user-avatar">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-else-if="item.type === 'assistant'" class="fb-msg-row assistant">
-                    <div class="fb-assistant-wrap">
-                      <div class="fb-bot-avatar"><img src="/avatar.png" alt="量仔" /></div>
-                      <div class="fb-assistant-bubble"><div class="fb-md" v-html="renderMd(item.content)" /></div>
-                    </div>
-                  </div>
-                </template>
-              </div>
-
               <!-- Feedback records -->
               <div class="fb-feedback-section" v-if="detailRecords.length > 0">
                 <div class="fb-feedback-section-header">
@@ -464,7 +444,7 @@
                     </div>
                     <div class="fb-timeline-card" :class="'tcard-' + (rec.rating || 'null')">
                       <div class="fb-timeline-card-header">
-                        <span class="fb-timeline-index">#{{ idx + 1 }}</span>
+                        <span class="fb-timeline-index">#{{ detailRecords.length - idx }}</span>
                         <span class="fb-rating-badge" :class="ratingBadgeClass(rec.rating)">{{ ratingLabel(rec.rating) }}</span>
                         <span class="fb-timeline-time">{{ formatTime(rec.created_at) }}</span>
                       </div>
@@ -486,6 +466,26 @@
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <!-- Chat messages -->
+              <div class="fb-messages" v-if="chatItems.length > 0">
+                <template v-for="item in chatItems" :key="item.key">
+                  <div v-if="item.type === 'user'" class="fb-msg-row user">
+                    <div class="fb-user-wrap">
+                      <div class="fb-user-bubble"><div class="fb-md" v-html="renderMd(item.content)" /></div>
+                      <div class="fb-user-avatar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else-if="item.type === 'assistant'" class="fb-msg-row assistant">
+                    <div class="fb-assistant-wrap">
+                      <div class="fb-bot-avatar"><img src="/avatar.png" alt="量仔" /></div>
+                      <div class="fb-assistant-bubble"><div class="fb-md" v-html="renderMd(item.content)" /></div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
           </template>

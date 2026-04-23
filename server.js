@@ -712,7 +712,7 @@ async function handleFeedbackByConversation(req, res, conversationId) {
     try {
         const pool = getPgPool();
         const { rows } = await pool.query(
-            `SELECT * FROM ${FEEDBACKS_TABLE} WHERE conversation_id = $1 ORDER BY created_at ASC`,
+            `SELECT * FROM ${FEEDBACKS_TABLE} WHERE conversation_id = $1 ORDER BY created_at DESC`,
             [conversationId]
         );
         res.writeHead(200);
