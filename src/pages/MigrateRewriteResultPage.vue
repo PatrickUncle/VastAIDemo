@@ -96,78 +96,174 @@
           <div
             v-for="item in paginatedItems"
             :key="item.id"
-            class="card p-6"
+            class="rounded-2xl border-2 overflow-hidden transition-all duration-300 hover:shadow-xl"
             :class="{
-              'bg-green-50/30 border-green-200': item.status === 'success',
-              'bg-red-50/30 border-red-200': item.status === 'failed'
+              'bg-gradient-to-br from-green-50/80 to-emerald-50/80 border-green-200': item.status === 'success',
+              'bg-gradient-to-br from-red-50/80 to-rose-50/80 border-red-200': item.status === 'failed'
             }"
           >
-            <div class="flex justify-between items-start mb-4">
-              <div class="flex items-center gap-2">
-                <span
-                  class="px-3 py-1 rounded-full text-xs font-medium"
-                  :class="{
-                    'bg-green-100 text-green-700': item.status === 'success',
-                    'bg-red-100 text-red-700': item.status === 'failed'
-                  }"
+            <!-- 卡片头部 -->
+            <div 
+              class="px-6 py-4 flex justify-between items-center border-b"
+              :class="{
+                'bg-gradient-to-r from-green-100/50 to-emerald-100/50 border-green-200': item.status === 'success',
+                'bg-gradient-to-r from-red-100/50 to-rose-100/50 border-red-200': item.status === 'failed'
+              }"
+            >
+              <div class="flex items-center gap-4">
+                <div 
+                  class="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
+                  :class="item.status === 'success' ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-red-500 to-rose-600'"
                 >
-                  <i :class="item.status === 'success' ? 'fa fa-check' : 'fa fa-times'" class="mr-1"></i>
-                  {{ item.status === 'success' ? '改写成功' : '改写失败' }}
-                </span>
-                <span class="text-sm text-gray-500">#{{ item.id }} 对象：{{ item.originalSql }}</span>
+                  <i :class="item.status === 'success' ? 'fa fa-check' : 'fa fa-times'"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full" :class="item.status === 'success' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'">
+                      {{ item.status === 'success' ? '改写成功' : '改写失败' }}
+                    </span>
+                    <span class="text-xs text-gray-500">#{{ item.id }}</span>
+                  </div>
+                  <div class="font-semibold text-gray-800 mt-0.5">{{ item.originalSql }}</div>
+                </div>
               </div>
-              <button
-                class="text-sm text-primary hover:underline flex items-center gap-1"
-                @click="rewriteSingle(item.id)"
-              >
-                <i class="fa fa-refresh"></i>
-                重新改写
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2"
+                  :class="item.status === 'success' ? 'bg-green-500 hover:bg-green-600 text-white shadow-md hover:shadow-lg' : 'bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg'"
+                  @click="rewriteSingle(item.id)"
+                >
+                  <i class="fa fa-refresh"></i>
+                  重新改写
+                </button>
+                <button
+                  class="px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1 bg-white/80 hover:bg-white border"
+                  :class="item.status === 'success' ? 'border-green-300 text-green-700' : 'border-red-300 text-red-700'"
+                  @click="toggleExpand(item.id)"
+                >
+                  <i :class="expandedItems.has(item.id) ? 'fa fa-chevron-up' : 'fa fa-chevron-down'"></i>
+                  {{ expandedItems.has(item.id) ? '收起' : '展开' }}
+                </button>
+              </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">原始SQL</label>
-                <textarea
-                  v-model="item.srcDdl"
-                  class="w-full h-36 p-2 rounded-lg border border-gray-200 font-mono text-sm bg-white resize-none focus:outline-none focus:border-primary"
-                ></textarea>
+            <!-- 卡片内容 -->
+            <div v-show="expandedItems.has(item.id)" class="p-6">
+              <!-- 改写详情标签（仅成功时显示） -->
+              <div v-if="item.status === 'success' && item.description" class="mb-4">
+                <div class="flex items-start gap-3 bg-blue-50/80 border border-blue-200 rounded-xl p-4">
+                  <div class="w-8 h-8 rounded-lg bg-blue-500 text-white flex items-center justify-center flex-shrink-0">
+                    <i class="fa fa-info-circle"></i>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-blue-900 mb-1">改写详情</div>
+                    <div class="text-sm text-blue-800" v-html="item.description"></div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                  {{ item.status === 'success' ? '问题SQL' : '改写后SQL' }}
-                </label>
-                <textarea
-                  v-if="item.status === 'success'"
-                  v-model="item.errorSql"
-                  class="w-full h-36 p-2 rounded-lg border border-orange-300 font-mono text-sm bg-orange-50 resize-none focus:outline-none focus:border-primary"
-                ></textarea>
-                <textarea
-                  v-else
-                  v-model="item.errorSql"
-                  class="w-full h-36 p-2 rounded-lg border border-red-300 font-mono text-sm bg-white resize-none focus:outline-none focus:border-primary"
-                ></textarea>
+
+              <!-- 失败原因标签（仅失败时显示） -->
+              <div v-if="item.status === 'failed' && item.failedReason" class="mb-4">
+                <div class="flex items-start gap-3 bg-red-50/80 border border-red-200 rounded-xl p-4">
+                  <div class="w-8 h-8 rounded-lg bg-red-500 text-white flex items-center justify-center flex-shrink-0">
+                    <i class="fa fa-exclamation-triangle"></i>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-sm font-medium text-red-900 mb-1">失败原因</div>
+                    <div class="text-sm text-red-800" v-html="item.failedReason"></div>
+                  </div>
+                </div>
               </div>
-              <div v-if="item.status === 'success'">
-                <label class="block text-sm font-medium text-gray-700 mb-2">改写后SQL</label>
-                <textarea
-                  v-model="item.rewrittenSql"
-                  class="w-full h-36 p-2 rounded-lg border border-green-300 font-mono text-sm bg-green-50 resize-none focus:outline-none focus:border-primary"
-                ></textarea>
+
+              <!-- SQL 对比区域 -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- 原始SQL -->
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+                    <i class="fa fa-file-code-o text-gray-500"></i>
+                    <span class="text-sm font-medium text-gray-700">原始SQL</span>
+                    <span class="text-xs text-gray-400 ml-auto">源数据库</span>
+                  </div>
+                  <div class="p-4">
+                    <textarea
+                      v-model="item.srcDdl"
+                      class="w-full h-40 p-3 rounded-lg border border-gray-200 font-mono text-sm bg-gray-50/50 resize-none focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <!-- 中间结果（成功时显示问题SQL，失败时显示错误SQL） -->
+                <div v-if="item.status === 'success'" class="bg-white rounded-xl border border-orange-200 overflow-hidden shadow-sm">
+                  <div class="px-4 py-2 bg-orange-50 border-b border-orange-200 flex items-center gap-2">
+                    <i class="fa fa-exclamation-circle text-orange-500"></i>
+                    <span class="text-sm font-medium text-orange-700">检测到的问题</span>
+                    <span class="text-xs text-orange-400 ml-auto">转换过程</span>
+                  </div>
+                  <div class="p-4">
+                    <textarea
+                      v-model="item.errorSql"
+                      class="w-full h-40 p-3 rounded-lg border border-orange-200 font-mono text-sm bg-orange-50/30 resize-none focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <!-- 改写后SQL（仅成功时显示） -->
+                <div v-if="item.status === 'success'" class="bg-white rounded-xl border border-green-200 overflow-hidden shadow-sm lg:col-span-2">
+                  <div class="px-4 py-2 bg-green-50 border-b border-green-200 flex items-center gap-2">
+                    <i class="fa fa-magic text-green-500"></i>
+                    <span class="text-sm font-medium text-green-700">改写后SQL</span>
+                    <span class="text-xs text-green-400 ml-auto">目标数据库</span>
+                    <button 
+                      class="ml-2 px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors"
+                      @click="copyToClipboard(item.rewrittenSql || '')"
+                    >
+                      <i class="fa fa-copy mr-1"></i>复制
+                    </button>
+                  </div>
+                  <div class="p-4">
+                    <textarea
+                      v-model="item.rewrittenSql"
+                      class="w-full h-40 p-3 rounded-lg border border-green-200 font-mono text-sm bg-green-50/30 resize-none focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-200 transition-all"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <!-- 失败时显示错误信息 -->
+                <div v-if="item.status === 'failed'" class="bg-white rounded-xl border border-red-200 overflow-hidden shadow-sm">
+                  <div class="px-4 py-2 bg-red-50 border-b border-red-200 flex items-center gap-2">
+                    <i class="fa fa-bug text-red-500"></i>
+                    <span class="text-sm font-medium text-red-700">错误信息</span>
+                  </div>
+                  <div class="p-4">
+                    <textarea
+                      v-model="item.errorSql"
+                      class="w-full h-40 p-3 rounded-lg border border-red-200 font-mono text-sm bg-red-50/30 resize-none focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200 transition-all"
+                    ></textarea>
+                  </div>
+                </div>
               </div>
-              <div v-if="item.status === 'success'">
-                <label class="block text-sm font-medium text-gray-700 mb-2">改写详情</label>
-                <div
-                  class="w-full h-36 p-2 rounded-lg border border-blue-200 bg-blue-50 text-sm overflow-y-auto"
-                  v-html="item.description"
-                ></div>
-              </div>
-              <div v-if="item.status === 'failed'">
-                <label class="block text-sm font-medium text-gray-700 mb-2">失败原因</label>
-                <div
-                  class="w-full h-36 p-2 rounded-lg border border-red-300 bg-red-50 text-sm overflow-y-auto"
-                  v-html="item.failedReason"
-                ></div>
+
+              <!-- 底部操作栏 -->
+              <div class="mt-4 flex items-center justify-between pt-4 border-t" :class="item.status === 'success' ? 'border-green-200' : 'border-red-200'">
+                <div class="flex items-center gap-4 text-sm text-gray-500">
+                  <span class="flex items-center gap-1">
+                    <i class="fa fa-clock-o"></i>
+                    创建时间: {{ new Date().toLocaleString() }}
+                  </span>
+                  <span class="flex items-center gap-1">
+                    <i class="fa fa-database"></i>
+                    对象类型: {{ item.originalSql.split('.')[1] ? '存储过程/函数' : '表' }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button 
+                    class="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
+                    @click="toggleExpand(item.id)"
+                  >
+                    <i :class="expandedItems.has(item.id) ? 'fa fa-compress' : 'fa fa-expand'"></i>
+                    {{ expandedItems.has(item.id) ? '收起' : '展开' }}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -371,7 +467,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
@@ -521,6 +617,34 @@ function showTestCaseDetail(tc: TestCase) {
   selectedTestCase.value = tc
 }
 
+// 展开/收起状态 - 默认全部展开
+const expandedItems = ref<Set<number>>(new Set())
+
+function initExpandedItems() {
+  // 初始化时将所有项目标记为展开
+  rewriteResult.value.items.forEach(item => {
+    expandedItems.value.add(item.id)
+  })
+}
+
+function toggleExpand(id: number) {
+  if (expandedItems.value.has(id)) {
+    expandedItems.value.delete(id)
+  } else {
+    expandedItems.value.add(id)
+  }
+}
+
+// 复制到剪贴板
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    alert('已复制到剪贴板')
+  } catch (err) {
+    console.error('复制失败:', err)
+  }
+}
+
 function callTestCaseWorkflow() {
   testWorkflowLoading.value = true
   // 模拟生成测试用例
@@ -581,8 +705,13 @@ async function pollRewriteWorkflowStatus(taskId: string) {
 
     if (data.status === 'succeeded' || data.status === 'stopped') {
       rewriteLoading.value = false
+      showRewriteResult.value = true
       stopRewritePolling()
       parseRewriteResult(data.outputs)
+      // 初始化展开状态
+      nextTick(() => {
+        initExpandedItems()
+      })
     } else if (data.status === 'failed') {
       rewriteLoading.value = false
       stopRewritePolling()
@@ -693,6 +822,9 @@ function parseRewriteResult(outputs: any) {
       }
     }),
   }
+  
+  // 初始化展开状态 - 默认全部展开
+  initExpandedItems()
 }
 
 function exportRewriteSqlFile() {
