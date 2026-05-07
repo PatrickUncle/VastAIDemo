@@ -41,20 +41,29 @@
       </div>
 
       <!-- 附件 -->
-      <div v-if="attachments.length" class="ticket-section">
+      <div v-if="allAttachments.length" class="ticket-section">
         <div class="section-title"><i class="fa fa-paperclip" /> 附件</div>
         <div class="attachment-list">
-          <a
-            v-for="(url, i) in attachments"
-            :key="i"
-            :href="url"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="attachment-item"
-          >
-            <i :class="attachmentIcon(url)" />
-            <span>{{ attachmentName(url) }}</span>
-          </a>
+          <!-- 支持的附件 -->
+          <template v-for="(item, i) in supportedAttachments" :key="'s-'+i">
+            <a
+              :href="item.url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="attachment-item"
+            >
+              <i :class="item.icon" />
+              <span>{{ item.name }}</span>
+            </a>
+          </template>
+          <!-- 不支持的附件 -->
+          <template v-for="(item, i) in unsupportedAttachments" :key="'u-'+i">
+            <div class="attachment-item attachment-unsupported">
+              <i class="fa fa-exclamation-triangle" />
+              <span>{{ item.name }}</span>
+              <span class="unsupported-hint">（{{ item.reason }}）</span>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -92,6 +101,87 @@ const problemDesc = computed(() => cleanHtml(props.ticket['问题信息']?.['问
 const records = computed(() => props.ticket['沟通记录'] || [])
 
 const attachments = computed<string[]>(() => props.ticket['问题信息']?.['附件'] || [])
+
+// 支持的文档扩展名
+const SUPPORTED_DOC_EXTENSIONS = new Set([
+  'txt', 'md', 'mdx', 'markdown', 'pde', 'html', 'xlsx', 'xls', 'doc', 'docx',
+  'csv', 'eml', 'msg', 'pptx', 'ppt', 'xml', 'epub', 'pdf', 'log'
+])
+
+// 支持的图片扩展名
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])
+
+// 最大附件数量
+const MAX_ATTACHMENTS = 10
+
+interface AttachmentItem {
+  url: string
+  name: string
+  ext: string
+  icon: string
+  supported: boolean
+  reason?: string
+}
+
+function getAttachmentItem(url: string): AttachmentItem {
+  const name = attachmentName(url)
+  const ext = (url.split('.').pop() || '').toLowerCase()
+  
+  let icon = 'fa fa-file-o'
+  let supported = true
+  let reason = ''
+  
+  if (SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
+    icon = 'fa fa-file-image-o'
+  } else if (SUPPORTED_DOC_EXTENSIONS.has(ext)) {
+    if (ext === 'pdf') icon = 'fa fa-file-pdf-o'
+    else if (['txt', 'log', 'md', 'markdown'].includes(ext)) icon = 'fa fa-file-text-o'
+    else if (['doc', 'docx'].includes(ext)) icon = 'fa fa-file-word-o'
+    else if (['xls', 'xlsx', 'csv'].includes(ext)) icon = 'fa fa-file-excel-o'
+    else if (['ppt', 'pptx'].includes(ext)) icon = 'fa fa-file-powerpoint-o'
+    else icon = 'fa fa-file-text-o'
+  } else {
+    // 不支持的文件类型
+    supported = false
+    icon = 'fa fa-file-o'
+    if (ext === 'zip' || ext === 'rar' || ext === '7z' || ext === 'tar' || ext === 'gz') {
+      reason = '不支持压缩包文件'
+    } else if (ext === 'exe' || ext === 'dll' || ext === 'so' || ext === 'dylib') {
+      reason = '不支持可执行文件'
+    } else if (ext === 'mp4' || ext === 'avi' || ext === 'mov' || ext === 'mp3' || ext === 'wav') {
+      reason = '不支持音视频文件'
+    } else {
+      reason = `不支持 .${ext} 文件类型`
+    }
+  }
+  
+  return { url, name, ext, icon, supported, reason }
+}
+
+const allAttachments = computed(() => {
+  return attachments.value.map(url => getAttachmentItem(url))
+})
+
+const supportedAttachments = computed(() => {
+  return allAttachments.value.filter(item => item.supported).slice(0, MAX_ATTACHMENTS)
+})
+
+const unsupportedAttachments = computed(() => {
+  const supported = allAttachments.value.filter(item => item.supported)
+  const unsupported = allAttachments.value.filter(item => !item.supported)
+  
+  // 如果支持的附件超过限制，多余的支持附件也显示为不支持
+  if (supported.length > MAX_ATTACHMENTS) {
+    const extraSupported = supported.slice(MAX_ATTACHMENTS).map(item => ({
+      ...item,
+      supported: false,
+      reason: '附件数量超过限制（最多10个）'
+    }))
+    return [...unsupported, ...extraSupported]
+  }
+  
+  return unsupported
+})
 
 function attachmentName(url: string): string {
   try { return decodeURIComponent(url.split('/').pop() || url) } catch { return url }
@@ -251,6 +341,25 @@ function cleanHtml(html: string): string {
 .attachment-item i {
   flex-shrink: 0;
   font-size: 14px;
+}
+
+.attachment-unsupported {
+  color: #86909C;
+  cursor: not-allowed;
+}
+
+.attachment-unsupported:hover {
+  background: #f7f8fc;
+}
+
+.attachment-unsupported .fa-exclamation-triangle {
+  color: #FF7D00;
+}
+
+.unsupported-hint {
+  color: #FF7D00;
+  font-size: 11px;
+  margin-left: 4px;
 }
 
 /* Description */

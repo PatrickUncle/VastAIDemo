@@ -39,3 +39,6 @@ lerna-debug.log*
 
 # Runtime files
 server.pid
+
+# MVS 工单数据目录
+mvs_data/
