@@ -102,13 +102,13 @@ const records = computed(() => props.ticket['沟通记录'] || [])
 
 const attachments = computed<string[]>(() => props.ticket['问题信息']?.['附件'] || [])
 
-// 支持的文档扩展名
+// 支持的文档扩展名（与SupportChatPage.vue保持一致）
 const SUPPORTED_DOC_EXTENSIONS = new Set([
-  'txt', 'md', 'mdx', 'markdown', 'pde', 'html', 'xlsx', 'xls', 'doc', 'docx',
-  'csv', 'eml', 'msg', 'pptx', 'ppt', 'xml', 'epub', 'pdf', 'log'
+  'txt', 'md', 'mdx', 'markdown', 'pdf', 'html', 'xlsx', 'xls',
+  'doc', 'docx', 'csv', 'eml', 'msg', 'pptx', 'ppt', 'xml', 'epub'
 ])
 
-// 支持的图片扩展名
+// 支持的图片扩展名（与SupportChatPage.vue保持一致）
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])
 
 // 最大附件数量
@@ -135,7 +135,7 @@ function getAttachmentItem(url: string): AttachmentItem {
     icon = 'fa fa-file-image-o'
   } else if (SUPPORTED_DOC_EXTENSIONS.has(ext)) {
     if (ext === 'pdf') icon = 'fa fa-file-pdf-o'
-    else if (['txt', 'log', 'md', 'markdown'].includes(ext)) icon = 'fa fa-file-text-o'
+    else if (['txt', 'md', 'markdown'].includes(ext)) icon = 'fa fa-file-text-o'
     else if (['doc', 'docx'].includes(ext)) icon = 'fa fa-file-word-o'
     else if (['xls', 'xlsx', 'csv'].includes(ext)) icon = 'fa fa-file-excel-o'
     else if (['ppt', 'pptx'].includes(ext)) icon = 'fa fa-file-powerpoint-o'
@@ -150,6 +150,8 @@ function getAttachmentItem(url: string): AttachmentItem {
       reason = '不支持可执行文件'
     } else if (ext === 'mp4' || ext === 'avi' || ext === 'mov' || ext === 'mp3' || ext === 'wav') {
       reason = '不支持音视频文件'
+    } else if (ext === 'log') {
+      reason = '不支持日志文件'
     } else {
       reason = `不支持 .${ext} 文件类型`
     }
@@ -189,9 +191,12 @@ function attachmentName(url: string): string {
 
 function attachmentIcon(url: string): string {
   const ext = url.split('.').pop()?.toLowerCase() || ''
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'fa fa-file-image-o'
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'fa fa-file-image-o'
   if (ext === 'pdf') return 'fa fa-file-pdf-o'
-  if (['txt', 'log'].includes(ext)) return 'fa fa-file-text-o'
+  if (['txt', 'md', 'markdown'].includes(ext)) return 'fa fa-file-text-o'
+  if (['doc', 'docx'].includes(ext)) return 'fa fa-file-word-o'
+  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'fa fa-file-excel-o'
+  if (['ppt', 'pptx'].includes(ext)) return 'fa fa-file-powerpoint-o'
   return 'fa fa-file-o'
 }
 

@@ -317,6 +317,9 @@ function handleMvsTicket(req, res, sessionId) {
         sessionId,
         alreadyStreamed,
         conversationId: task.conversationId || null,
+        engineerName: task.engineerName || null,
+        difyUserId: task.difyUserId || null,
+        attachmentUrls: task.attachmentUrls || [],
     }));
 }
 
@@ -346,6 +349,38 @@ function handleMvsTicketUpdate(req, res, sessionId) {
             res.end(JSON.stringify({ success: false, message: '无效的 JSON' }));
         }
     });
+}
+
+function extractEngineerName(ticketData) {
+    // 从工单数据中提取工程师姓名
+    // 支持多种可能的字段路径
+    if (ticketData?.工程师信息?.工程师姓名) {
+        return ticketData.工程师信息.工程师姓名;
+    }
+    if (ticketData?.engineer?.name) {
+        return ticketData.engineer.name;
+    }
+    if (ticketData?.engineerName) {
+        return ticketData.engineerName;
+    }
+    return null;
+}
+
+function extractAttachmentUrls(ticketData) {
+    // 从工单数据中提取附件URL列表
+    const urls = [];
+    // 支持多种可能的字段路径
+    if (ticketData?.问题信息?.附件 && Array.isArray(ticketData.问题信息.附件)) {
+        urls.push(...ticketData.问题信息.附件);
+    }
+    if (ticketData?.attachments && Array.isArray(ticketData.attachments)) {
+        urls.push(...ticketData.attachments);
+    }
+    if (ticketData?.files && Array.isArray(ticketData.files)) {
+        urls.push(...ticketData.files);
+    }
+    // 过滤掉非URL项
+    return urls.filter(url => typeof url === 'string' && url.startsWith('http'));
 }
 
 function handleMvsSubmit(req, res) {
@@ -382,12 +417,27 @@ function handleMvsSubmit(req, res) {
         const sessionId = `mvs-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
         const redirectUrl = `http://${LOCAL_IP}:${PUBLIC_PORT}/chat?session_id=${sessionId}`;
 
+        // 提取工程师名称并构建Dify用户ID
+        const engineerName = extractEngineerName(ticketData);
+        const difyUserId = engineerName ? `MVS-${engineerName}` : null;
+
+        // 提取附件URL列表
+        const attachmentUrls = extractAttachmentUrls(ticketData);
+
         // 只存储工单内容，不再调用 Dify，等用户打开页面后由前端发起流式请求
         const query = formatTicketForDify(ticketData);
-        mvsTaskMap.set(sessionId, { status: 'pending', sessionId, query, ticketData });
+        mvsTaskMap.set(sessionId, { 
+            status: 'pending', 
+            sessionId, 
+            query, 
+            ticketData,
+            engineerName,
+            difyUserId,
+            attachmentUrls
+        });
 
-        // 1小时后清理
-        setTimeout(() => mvsTaskMap.delete(sessionId), 3600000);
+        // 7天后清理（保留7天历史记录）
+        setTimeout(() => mvsTaskMap.delete(sessionId), 7 * 24 * 60 * 60 * 1000);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
@@ -395,6 +445,8 @@ function handleMvsSubmit(req, res) {
             message: '工单已接收',
             sessionId,
             redirectUrl,
+            engineerName,
+            difyUserId
         }));
     });
 
@@ -518,7 +570,7 @@ function handleHealthCheck(req, res) {
     const healthStatus = {
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        service: 'VastAIDemo',
+        service: 'VastAI',
         version: '2.0.0',
         uptime: process.uptime(),
         memory: process.memoryUsage(),

@@ -325,7 +325,7 @@
               ref="inputRef"
               v-model="inputText"
               type="text"
-              placeholder="和 VastAIDemo-V0.0.3 聊天"
+              placeholder="和 VastAI-${appVersion} 聊天"
               class="chat-input"
               @keypress.enter.exact="handleSend"
               @paste="onPaste"
@@ -348,7 +348,10 @@
             </button>
             </div>
           </div>
-          <div class="input-hint">按 Enter 发送 · 支持上传日志、截图等文件</div>
+          <div class="input-footer">
+            <div class="input-hint">按 Enter 发送 · 支持上传日志、截图等文件</div>
+            <div class="app-version">{{ appVersion }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -427,6 +430,68 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- Export Format Dialog -->
+  <Teleport to="body">
+    <div v-if="exportFormatModal" class="export-format-overlay" @click="closeExportFormatDialog">
+      <div class="export-format-dialog" @click.stop>
+        <div class="export-format-header">
+          <h3>选择导出格式</h3>
+          <button class="export-format-close" @click="closeExportFormatDialog">
+            <i class="fa fa-times" />
+          </button>
+        </div>
+
+        <div class="export-format-content">
+          <div class="format-options">
+            <label
+              class="format-option"
+              :class="{ active: selectedExportFormat === 'markdown' }"
+              @click="selectedExportFormat = 'markdown'"
+            >
+              <div class="format-radio">
+                <input type="radio" v-model="selectedExportFormat" value="markdown" />
+                <span class="radio-indicator" />
+              </div>
+              <div class="format-info">
+                <div class="format-icon"><i class="fa fa-file-text-o" /></div>
+                <div class="format-details">
+                  <div class="format-name">Markdown 格式</div>
+                  <div class="format-desc">纯文本格式，适合技术编辑和版本控制</div>
+                </div>
+              </div>
+            </label>
+
+            <label
+              class="format-option"
+              :class="{ active: selectedExportFormat === 'html' }"
+              @click="selectedExportFormat = 'html'"
+            >
+              <div class="format-radio">
+                <input type="radio" v-model="selectedExportFormat" value="html" />
+                <span class="radio-indicator" />
+              </div>
+              <div class="format-info">
+                <div class="format-icon"><i class="fa fa-html5" /></div>
+                <div class="format-details">
+                  <div class="format-name">HTML 格式</div>
+                  <div class="format-desc">富文本格式，适合浏览器查看和打印</div>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="export-format-footer">
+          <button class="export-format-cancel" @click="closeExportFormatDialog">取消</button>
+          <button class="export-format-confirm" @click="confirmExport">
+            <i class="fa fa-download" />
+            <span>导出</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -446,14 +511,19 @@ import {
   saveFeedbackToDB,
   DEFAULT_USER_ID,
 } from '@/api'
-import { generateId, formatTime, exportCurrentConversation } from '@/utils'
+import { generateId, formatTime, exportCurrentConversation, type ExportFormat } from '@/utils'
 import type { ChatMessage, Conversation, DifyFile, MessageSegment, FeedbackData, WorkflowNode, MessageFile } from '@/types'
 
 const route = useRoute()
 const chatStore = useChatStore()
 
+// 应用版本号
+const appVersion = import.meta.env.VITE_APP_VERSION || 'V0.0.6'
+
 // Always use the browser-unique userId; session_id is only for fetching ticket data
-const userId = computed(() => DEFAULT_USER_ID)
+// 在MVS工单场景下，使用工程师名称作为userId以获取该工程师的历史对话
+const mvsDifyUserId = ref<string | null>(null)
+const userId = computed(() => mvsDifyUserId.value || DEFAULT_USER_ID)
 
 const suggestions = [
   '如何排查 vastbase 连接超时问题？',
@@ -541,17 +611,31 @@ const MAX_FILE_COUNT = 10
 const MAX_DOC_SIZE = 15 * 1024 * 1024   // 15 MB
 const MAX_IMG_SIZE = 10 * 1024 * 1024   // 10 MB
 
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff', 'tif', 'avif'])
+// 支持的文档类型：TXT, MD, MDX, MARKDOWN, PDF, HTML, XLSX, XLS, DOC, DOCX, CSV, EML, MSG, PPTX, PPT, XML, EPUB
+const SUPPORTED_DOC_EXTENSIONS = new Set([
+  'txt', 'md', 'mdx', 'markdown', 'pdf', 'html', 'xlsx', 'xls', 
+  'doc', 'docx', 'csv', 'eml', 'msg', 'pptx', 'ppt', 'xml', 'epub'
+])
+
+// 支持的图片类型：JPG, JPEG, PNG, GIF, WEBP, SVG
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])
+
+// 所有支持的文件类型
+const SUPPORTED_EXTENSIONS = new Set([...SUPPORTED_DOC_EXTENSIONS, ...SUPPORTED_IMAGE_EXTENSIONS])
+
+function isSupportedFile(file: File): boolean {
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  return SUPPORTED_EXTENSIONS.has(ext)
+}
 
 function isImageFile(file: File) {
-  if (file.type.startsWith('image/')) return true
   const ext = (file.name.split('.').pop() || '').toLowerCase()
-  return IMAGE_EXTENSIONS.has(ext)
+  return SUPPORTED_IMAGE_EXTENSIONS.has(ext)
 }
 
 function isPreviewImageFile(name: string) {
   const ext = (name.split('.').pop() || '').toLowerCase()
-  return IMAGE_EXTENSIONS.has(ext)
+  return SUPPORTED_IMAGE_EXTENSIONS.has(ext)
 }
 
 function getFileExt(file: File) {
@@ -571,6 +655,12 @@ function validateAndAddFiles(files: File[]) {
   const toAdd: File[] = []
 
   for (const file of files) {
+    // 检查文件类型是否支持，不支持的直接丢弃
+    if (!isSupportedFile(file)) {
+      // 不支持的文件类型直接丢弃，不显示错误
+      continue
+    }
+
     const isImg = isImageFile(file)
     const maxSize = isImg ? MAX_IMG_SIZE : MAX_DOC_SIZE
     const label = isImg ? '图片' : '文档'
@@ -1057,7 +1147,10 @@ async function handleSend() {
     setStatus('下载附件中...', 'loading')
     for (const { url: attachUrl } of attachmentUrls) {
       const file = await downloadUrlAsFile(attachUrl)
-      if (file) currentFiles.push(file)
+      // 只保留支持的文件类型，不支持的直接丢弃
+      if (file && isSupportedFile(file)) {
+        currentFiles.push(file)
+      }
     }
   }
 
@@ -1128,14 +1221,38 @@ function handleNewChat() {
   chatStore.reset()
   closeSidebar()
   setStatus('在线', 'online')
+  // 清除MVS场景的userId，恢复为默认用户ID
+  mvsDifyUserId.value = null
   nextTick(() => inputRef.value?.focus())
 }
 
-function exportConversation() {
+// ── Export Format Dialog ────────────────────────────────────
+const exportFormatModal = ref(false)
+const selectedExportFormat = ref<ExportFormat>('markdown')
+
+function openExportFormatDialog() {
+  if (chatStore.messages.length === 0) {
+    alert('当前没有对话内容可导出')
+    return
+  }
+  selectedExportFormat.value = 'markdown'
+  exportFormatModal.value = true
+}
+
+function closeExportFormatDialog() {
+  exportFormatModal.value = false
+}
+
+function confirmExport() {
   const currentConv = conversations.value.find(
     conv => conv.id === chatStore.currentConversationId
   )
-  exportCurrentConversation(chatStore.messages, currentConv)
+  exportCurrentConversation(chatStore.messages, currentConv, selectedExportFormat.value)
+  closeExportFormatDialog()
+}
+
+function exportConversation() {
+  openExportFormatDialog()
 }
 
 async function loadConversations() {
@@ -1316,6 +1433,14 @@ async function fetchTicketAndStream(sessionId: string) {
       return
     }
 
+    // 设置MVS场景的Dify用户ID（工程师账号），用于获取该工程师的历史对话
+    if (data.difyUserId) {
+      mvsDifyUserId.value = data.difyUserId
+    }
+
+    // 先加载历史对话列表（在设置mvsDifyUserId之后）
+    await loadConversations()
+
     // 展示用户消息
     chatStore.addMessage({
       id: generateId(),
@@ -1335,28 +1460,55 @@ async function fetchTicketAndStream(sessionId: string) {
         await handleSwitchConversation(data.conversationId, data.ticketData || null)
       }
       setStatus('在线', 'online')
-      return
+    } else {
+      setStatus('正在思考...', 'thinking')
+
+      // 下载附件文件（只处理支持的文件类型）
+      let difyFiles: DifyFile[] = []
+      if (data.attachmentUrls && data.attachmentUrls.length > 0) {
+        setStatus('下载附件中...', 'loading')
+        const downloadedFiles: File[] = []
+        for (const attachUrl of data.attachmentUrls) {
+          const file = await downloadUrlAsFile(attachUrl)
+          // 只保留支持的文件类型，不支持的直接丢弃
+          if (file && isSupportedFile(file)) {
+            downloadedFiles.push(file)
+          }
+        }
+
+        // 上传文件到Dify
+        if (downloadedFiles.length > 0) {
+          setStatus('上传文件中...', 'loading')
+          for (const file of downloadedFiles) {
+            const fileId = await uploadFile(file, userId.value)
+            if (fileId) {
+              const fileType: 'image' | 'document' = isImageFile(file) ? 'image' : 'document'
+              difyFiles.push({ type: fileType, transfer_method: 'local_file', upload_file_id: fileId })
+            }
+          }
+        }
+        setStatus('正在思考...', 'thinking')
+      }
+
+      // 直接发起流式请求（带附件）
+      await streamSend(data.query, undefined, difyFiles.length > 0 ? (difyFiles as any) : undefined)
+
+      if (streamConversationId.value && !chatStore.currentConversationId) {
+        chatStore.setConversationId(streamConversationId.value)
+      }
+
+      // 将 conversationId 回传给 server，供后续刷新时加载历史
+      if (streamConversationId.value) {
+        fetch(`/api/mvs/ticket/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId: streamConversationId.value }),
+        }).catch(() => {})
+      }
+
+      // 流式请求完成后刷新对话列表
+      await loadConversations()
     }
-
-    setStatus('正在思考...', 'thinking')
-
-    // 直接发起流式请求
-    await streamSend(data.query, undefined, undefined)
-
-    if (streamConversationId.value && !chatStore.currentConversationId) {
-      chatStore.setConversationId(streamConversationId.value)
-    }
-
-    // 将 conversationId 回传给 server，供后续刷新时加载历史
-    if (streamConversationId.value) {
-      fetch(`/api/mvs/ticket/${sessionId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: streamConversationId.value }),
-      }).catch(() => {})
-    }
-
-    await loadConversations()
   } catch (err: any) {
     chatStore.addMessage({
       id: generateId(),
@@ -1411,8 +1563,9 @@ onMounted(async () => {
   if (sessionIdFromUrl) {
     // MVS 工单场景：拉取工单内容，直接在前端发起流式请求
     setStatus('加载工单中...', 'loading')
-    await loadConversations()
+    // 先获取工单信息（包括difyUserId），再加载对话列表
     await fetchTicketAndStream(sessionIdFromUrl)
+    await loadConversations()
   } else if (convIdFromUrl) {
     chatStore.setConversationId(convIdFromUrl)
     streamConversationId.value = convIdFromUrl
@@ -2483,11 +2636,23 @@ onUnmounted(() => {
 
 .send-btn:disabled:not(.active) { cursor: not-allowed; }
 
+.input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 0 4px;
+}
+
 .input-hint {
   font-size: 11px;
   color: #C9CDD4;
-  text-align: center;
-  margin-top: 8px;
+}
+
+.app-version {
+  font-size: 11px;
+  color: #C9CDD4;
+  font-family: monospace;
 }
 
 .stop-streaming-bar {
@@ -2868,6 +3033,245 @@ onUnmounted(() => {
   font-weight: 600;
   color: #1D2129;
   margin: 0;
+}
+
+/* ─── Export Format Dialog ─────────────────────────────────── */
+.export-format-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.export-format-dialog {
+  background: white;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+  overflow: hidden;
+}
+
+.export-format-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #F2F3F5;
+}
+
+.export-format-header h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1D2129;
+}
+
+.export-format-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #86909C;
+  transition: all 0.15s;
+}
+
+.export-format-close:hover {
+  background: #F2F3F5;
+  color: #4E5969;
+}
+
+.export-format-content {
+  padding: 24px;
+}
+
+.format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.format-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 2px solid #E5E6EB;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+}
+
+.format-option:hover {
+  border-color: #165DFF;
+  background: #F7F8FF;
+}
+
+.format-option.active {
+  border-color: #165DFF;
+  background: #F0F3FF;
+}
+
+.format-radio {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.format-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.radio-indicator {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #C9CDD4;
+  border-radius: 50%;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.format-option.active .radio-indicator {
+  border-color: #165DFF;
+  background: #165DFF;
+}
+
+.radio-indicator::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.format-option.active .radio-indicator::after {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.format-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+}
+
+.format-icon {
+  width: 44px;
+  height: 44px;
+  background: #F2F3F5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #4E5969;
+  flex-shrink: 0;
+}
+
+.format-option.active .format-icon {
+  background: #165DFF;
+  color: white;
+}
+
+.format-details {
+  flex: 1;
+}
+
+.format-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1D2129;
+  margin-bottom: 4px;
+}
+
+.format-desc {
+  font-size: 13px;
+  color: #86909C;
+}
+
+.export-format-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #F2F3F5;
+  background: #FAFBFC;
+}
+
+.export-format-cancel {
+  padding: 8px 20px;
+  border: 1px solid #E5E6EB;
+  background: white;
+  border-radius: 10px;
+  color: #4E5969;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.export-format-cancel:hover {
+  background: #F2F3F5;
+  border-color: #D0D3D9;
+}
+
+.export-format-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #165DFF, #4080FF);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.25);
+}
+
+.export-format-confirm:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 16px rgba(22, 93, 255, 0.35);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 768px) {
