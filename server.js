@@ -43,6 +43,7 @@ const PORT = PUBLIC_PORT;
 const LOCAL_IP = process.env.LOCAL_IP || '43.139.131.125';
 const DIFY_API_BASE = process.env.DIFY_API_BASE || 'http://101.35.56.39';
 const MVS_DIFY_API_KEY = process.env.DIFY_API_KEY || '';
+const XIAOHAILING_HOST = process.env.VITE_XIAOHAILING_HOST || 'http://localhost:3210';
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -67,6 +68,11 @@ const server = http.createServer((req, res) => {
 
     if (pathname.startsWith('/api/dify/')) {
         handleDifyProxy(req, res, pathname, parsedUrl);
+        return;
+    }
+
+    if (pathname.startsWith('/xh-api/')) {
+        handleXiaohailingProxy(req, res, pathname, parsedUrl);
         return;
     }
 
@@ -245,7 +251,7 @@ function handleDifyProxy(req, res, pathname, parsedUrl) {
         });
         
         proxyReq.setTimeout(300000, () => {
-            console.error('[Proxy Timeout] Dify API 响应超时 (300秒)');
+            console.error('[Proxy Timeout] Dify API 响应超时 (300 秒)');
             proxyReq.destroy();
             if (!res.headersSent) {
                 res.writeHead(504, { 'Content-Type': 'application/json' });
@@ -259,6 +265,103 @@ function handleDifyProxy(req, res, pathname, parsedUrl) {
         
         proxyReq.on('error', (error) => {
             console.error('[Proxy Error]', error.message);
+            if (!res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Proxy Error', message: error.message }));
+            }
+        });
+        
+        if (bodyBuffer.length > 0) {
+            proxyReq.write(bodyBuffer);
+        }
+        
+        proxyReq.end();
+    });
+}
+
+function handleXiaohailingProxy(req, res, pathname, parsedUrl) {
+    const xhPath = pathname.replace('/xh-api', '');
+    const targetUrl = XIAOHAILING_HOST + xhPath + (parsedUrl.search || '');
+    
+    console.log(`[Xiaohailing Proxy] ${req.method} ${targetUrl}`);
+    
+    // 处理 OPTIONS 预检请求
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200, {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400'
+        });
+        res.end();
+        return;
+    }
+    
+    let body = [];
+    req.on('data', (chunk) => {
+        body.push(chunk);
+    });
+    
+    req.on('end', () => {
+        const bodyBuffer = Buffer.concat(body);
+        
+        const headers = {};
+        for (let i = 0; i < req.rawHeaders.length; i += 2) {
+            const key = req.rawHeaders[i];
+            const value = req.rawHeaders[i + 1];
+            if (key.toLowerCase() !== 'host' && 
+                key.toLowerCase() !== 'origin' &&
+                key.toLowerCase() !== 'referer') {
+                headers[key] = value;
+            }
+        }
+        
+        const targetUrlObj = new URL(XIAOHAILING_HOST);
+        const isHttps = targetUrlObj.protocol === 'https:';
+        const httpModule = isHttps ? https : http;
+        
+        const options = {
+            hostname: targetUrlObj.hostname,
+            port: targetUrlObj.port || (isHttps ? 443 : 80),
+            path: xhPath + (parsedUrl.search || ''),
+            method: req.method,
+            headers: headers
+        };
+        
+        const proxyReq = httpModule.request(options, (proxyRes) => {
+            console.log(`[Xiaohailing Proxy Response] Status: ${proxyRes.statusCode}`);
+            res.writeHead(proxyRes.statusCode, {
+                ...proxyRes.headers,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            });
+            
+            proxyRes.on('data', (chunk) => {
+                res.write(chunk);
+            });
+            
+            proxyRes.on('end', () => {
+                console.log(`[Xiaohailing Proxy] 请求完成`);
+                res.end();
+            });
+        });
+        
+        proxyReq.setTimeout(30000, () => {
+            console.error('[Xiaohailing Proxy Timeout] 小海灵 API 响应超时 (30 秒)');
+            proxyReq.destroy();
+            if (!res.headersSent) {
+                res.writeHead(504, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    error: 'Gateway Timeout', 
+                    message: '小海灵 API 响应超时，请稍后重试',
+                    code: 504
+                }));
+            }
+        });
+        
+        proxyReq.on('error', (error) => {
+            console.error('[Xiaohailing Proxy Error]', error.message);
             if (!res.headersSent) {
                 res.writeHead(502, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Proxy Error', message: error.message }));

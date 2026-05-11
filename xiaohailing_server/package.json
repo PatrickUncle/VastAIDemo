@@ -1,0 +1,28 @@
+{
+  "name": "xiaohailing-server",
+  "version": "1.0.0",
+  "description": "小海灵服务端 - 与 OpenClaw Gateway 通信的代理服务",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "xiaohailing",
+    "openclaw",
+    "websocket",
+    "proxy"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "uuid": "^10.0.0",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
